@@ -36,7 +36,7 @@ export default function About() {
   return (
     <div className="bg-white min-h-screen">
       {/* Hero Background Section */}
-      <div className="relative pt-32 pb-20 overflow-hidden">
+      <div className="relative pt-44 pb-20 overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
             src="https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=2000" 

@@ -71,7 +71,7 @@ export default function NewsPage() {
   return (
     <div className="bg-slate-50 min-h-screen">
       {/* Hero Header */}
-      <div className="relative pt-32 pb-20 overflow-hidden bg-slate-900">
+      <div className="relative pt-44 pb-20 overflow-hidden bg-slate-900">
         <div className="absolute inset-0 z-0">
           <img 
             src="https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=2000" 
