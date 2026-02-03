@@ -47,7 +47,7 @@ export default function Navbar() {
   return (
     <nav 
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? 'bg-white/90 backdrop-blur-md shadow-md py-2' : 'bg-transparent py-4'
+        scrolled ? 'bg-white/90 backdrop-blur-md shadow-md py-2' : 'bg-transparent py-6'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -76,17 +76,16 @@ export default function Navbar() {
             ))}
             
             <div className="flex items-center gap-4">
-              {/* Language Switcher - Dropdown with Flags */}
-              <div className="relative group mr-2">
+              {/* Language Switcher - Styled Select */}
+              <div className="relative group">
                  <select 
                     value={currentLanguage}
                     onChange={(e) => changeLanguage(e.target.value)}
-                    className={`appearance-none bg-transparent font-medium text-sm focus:outline-none cursor-pointer pr-4 py-1 border border-transparent rounded-md ${
+                    className={`appearance-none bg-transparent font-medium text-sm focus:outline-none cursor-pointer py-2 pl-3 pr-8 border rounded-lg transition-colors ${
                         isHome && !scrolled 
-                            ? 'text-white hover:bg-white/10' 
-                            : 'text-slate-600 hover:bg-slate-100'
+                            ? 'text-white border-white/20 hover:bg-white/10' 
+                            : 'text-slate-600 border-slate-200 hover:bg-slate-50'
                     }`}
-                    style={{ textAlignLast: 'center' }}
                  >
                     {languages.map(lang => (
                         <option key={lang.code} value={lang.code} className="text-slate-900 bg-white">
@@ -94,6 +93,11 @@ export default function Navbar() {
                         </option>
                     ))}
                  </select>
+                 <div className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${isHome && !scrolled ? 'text-white' : 'text-slate-500'}`}>
+                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                     <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                   </svg>
+                 </div>
               </div>
 
               {user ? (
@@ -122,20 +126,24 @@ export default function Navbar() {
 
           {/* Mobile Menu & Language Switcher */}
           <div className="md:hidden flex items-center gap-4">
-            {/* Mobile Language Switcher (Visible outside menu) */}
-            <select 
-                value={currentLanguage}
-                onChange={(e) => changeLanguage(e.target.value)}
-                className={`appearance-none bg-transparent font-medium text-sm focus:outline-none cursor-pointer border border-transparent rounded-md pr-1 ${
-                    isHome && !scrolled ? 'text-white' : 'text-slate-600'
-                }`}
-            >
-                {languages.map(lang => (
-                    <option key={lang.code} value={lang.code} className="text-slate-900 bg-white">
-                        {lang.flag} {lang.code.toUpperCase()}
-                    </option>
-                ))}
-            </select>
+            {/* Mobile Language Switcher (Select) */}
+            <div className="relative">
+              <select 
+                  value={currentLanguage}
+                  onChange={(e) => changeLanguage(e.target.value)}
+                  className={`appearance-none bg-transparent font-bold text-xs uppercase focus:outline-none cursor-pointer py-1 pl-2 pr-6 border rounded-md ${
+                      isHome && !scrolled 
+                          ? 'text-white border-white/20' 
+                          : 'text-slate-600 border-slate-200'
+                  }`}
+              >
+                  {languages.map(lang => (
+                      <option key={lang.code} value={lang.code} className="text-slate-900 bg-white">
+                          {lang.code}
+                      </option>
+                  ))}
+              </select>
+            </div>
 
             <button
               onClick={() => setIsOpen(!isOpen)}
