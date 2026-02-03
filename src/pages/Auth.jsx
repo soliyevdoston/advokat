@@ -1,11 +1,29 @@
 import React, { useState } from 'react';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Scale, Mail, Lock, User, Github, Chrome } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Scale, Mail, Lock, User, Chrome } from 'lucide-react';
 import Button from '../components/ui/Button';
+import { useAuth } from '../context/AuthContext';
 
 export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const [isLogin, setIsLogin] = useState(location.state?.isLogin ?? true);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Simulate login data
+    const formData = new FormData(e.target);
+    const email = formData.get('email');
+    const name = formData.get('name') || email.split('@')[0];
+    
+    login({ email, name });
+    
+    // Navigate back to where they came from or dashboard
+    const from = location.state?.from?.pathname || '/dashboard';
+    navigate(from);
+  };
 
   return (
     <div className="min-h-screen pt-20 flex items-center justify-center bg-slate-50 px-4">
@@ -53,13 +71,13 @@ export default function Auth() {
             </button>
           </div>
 
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={handleSubmit}>
             {!isLogin && (
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">To'liq ismingiz</label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 text-slate-400" size={20} />
-                  <input type="text" placeholder="Azizbek Tursunov" className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-slate-50 focus:bg-white transition-all" />
+                  <input name="name" type="text" placeholder="Azizbek Tursunov" className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-slate-50 focus:bg-white transition-all" />
                 </div>
               </div>
             )}
@@ -68,7 +86,7 @@ export default function Auth() {
               <label className="text-sm font-medium text-slate-700">Email manzili</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 text-slate-400" size={20} />
-                <input type="email" placeholder="example@gmail.com" className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-slate-50 focus:bg-white transition-all" />
+                <input name="email" type="email" placeholder="example@gmail.com" className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-slate-50 focus:bg-white transition-all" />
               </div>
             </div>
 
@@ -76,7 +94,7 @@ export default function Auth() {
               <label className="text-sm font-medium text-slate-700">Parol</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 text-slate-400" size={20} />
-                <input type="password" placeholder="••••••••" className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-slate-50 focus:bg-white transition-all" />
+                <input name="password" type="password" placeholder="••••••••" className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] bg-slate-50 focus:bg-white transition-all" />
               </div>
             </div>
 
@@ -102,12 +120,9 @@ export default function Auth() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <button className="flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-              <Chrome size={20} /> Google
-            </button>
-            <button className="flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-              <Github size={20} /> GitHub
+          <div className="flex flex-col gap-4">
+            <button className="flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors w-full">
+              <Chrome size={20} /> Google orqali davom etish
             </button>
           </div>
         </div>

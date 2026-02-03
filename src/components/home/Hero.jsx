@@ -10,7 +10,7 @@ export default function Hero() {
       {/* Background Image with Overlay */}
       <div className="absolute inset-0 z-0">
         <img 
-          src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=2000" 
+          src="https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=2000" 
           alt="Modern Law Office" 
           className="w-full h-full object-cover"
         />
@@ -32,21 +32,21 @@ export default function Hero() {
             <span className="text-sm font-medium tracking-wide">O'rta Osiyoda yagona huquqiy platforma</span>
           </div>
           
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif font-bold leading-tight mb-8 tracking-tight">
+          <h1 className="text-4xl md:text-7xl lg:text-8xl font-serif font-bold leading-tight mb-6 md:mb-8 tracking-tight">
             <span className="text-amber-400 drop-shadow-lg">Adolat va Qonun</span> <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-white to-blue-200">
               Ustuvorligi
             </span>
           </h1>
           
-          <p className="text-xl md:text-2xl text-slate-200 mb-12 max-w-3xl mx-auto font-light leading-relaxed">
+          <p className="text-lg md:text-2xl text-slate-200 mb-8 md:mb-12 max-w-3xl mx-auto font-light leading-relaxed px-4">
             Murakkab huquqiy masalalarga oddiy va samarali yechimlar. Malakali advokatlar va sun'iy intellekt yordamida himoyalang.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-            <Link to="/lawyers">
+            <Link to="/chat">
               <Button size="lg" className="bg-white text-slate-900 hover:bg-blue-50 border-none px-10 py-5 text-lg font-bold shadow-2xl shadow-white/10 group">
-                Advokat Topish <ArrowRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                Qanday muammoga duch keldingiz? <ArrowRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
             <Link to="/about">

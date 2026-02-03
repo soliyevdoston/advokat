@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Scale } from 'lucide-react';
+import { Menu, X, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../ui/Button';
+import Logo from '../ui/Logo';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
   const isHome = location.pathname === '/';
 
   useEffect(() => {
@@ -33,13 +36,6 @@ export default function Navbar() {
     return 'text-[var(--color-primary)]';
   };
 
-  const getLogoBg = () => {
-    if (isHome && !scrolled) {
-      return 'bg-white/20 backdrop-blur-md text-white';
-    }
-    return 'bg-[var(--color-primary)] text-white';
-  };
-
   return (
     <nav 
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -50,11 +46,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <img 
-              src="/logo.jpg" 
-              alt="LegalLink Logo" 
-              className="w-10 h-10 rounded-xl object-cover shadow-lg"
-            />
+            <Logo className="w-10 h-10" color={getLogoColor()} />
             <span className={`text-2xl font-serif font-bold transition-colors ${getLogoColor()}`}>
               LegalLink
             </span>
@@ -74,11 +66,30 @@ export default function Navbar() {
                 } ${location.pathname === link.path ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'}`} />
               </Link>
             ))}
-            <Link to="/chat">
-               <Button className={`${isHome && !scrolled ? 'bg-white text-[var(--color-primary)] hover:bg-blue-50' : 'btn-primary'}`}>
-                 Bepul Konsultatsiya
-               </Button>
-            </Link>
+            
+            <div className="flex items-center gap-4">
+              {user ? (
+                <Link to="/dashboard">
+                  <Button variant="outline" className={`border-transparent px-4 gap-2 ${isHome && !scrolled ? 'text-white hover:bg-white/10' : 'text-[var(--color-primary)] hover:bg-blue-50'}`}>
+                    <User size={20} />
+                    {user.name}
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link to="/auth">
+                    <Button variant="outline" className={`border-transparent px-4 ${isHome && !scrolled ? 'text-white hover:bg-white/10' : 'text-[var(--color-primary)] hover:bg-blue-50'}`}>
+                      Kirish
+                    </Button>
+                  </Link>
+                  <Link to="/auth" state={{ isLogin: false }}>
+                     <Button className={`${isHome && !scrolled ? 'bg-white text-[var(--color-primary)] hover:bg-blue-50' : 'btn-primary'}`}>
+                       Ro'yxatdan o'tish
+                     </Button>
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Mobile Menu Button */}
@@ -117,10 +128,23 @@ export default function Navbar() {
                   {link.name}
                 </Link>
               ))}
-              <div className="pt-4">
-                <Link to="/chat" onClick={() => setIsOpen(false)}>
-                  <Button className="w-full btn-primary">Bepul Konsultatsiya</Button>
-                </Link>
+              <div className="pt-4 flex flex-col gap-3">
+                {user ? (
+                  <Link to="/dashboard" onClick={() => setIsOpen(false)}>
+                    <Button className="w-full btn-primary justify-center gap-2">
+                       <User size={20} /> Kabinetga o'tish
+                    </Button>
+                  </Link>
+                ) : (
+                  <>
+                    <Link to="/auth" onClick={() => setIsOpen(false)}>
+                      <Button variant="outline" className="w-full justify-center">Kirish</Button>
+                    </Link>
+                    <Link to="/auth" state={{ isLogin: false }} onClick={() => setIsOpen(false)}>
+                      <Button className="w-full btn-primary justify-center">Ro'yxatdan o'tish</Button>
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>
@@ -135,5 +159,4 @@ const navLinks = [
   { name: 'Advokatlar', path: '/lawyers' },
   { name: 'Yangiliklar', path: '/news' },
   { name: 'Biz haqimizda', path: '/about' },
-  { name: "Bog'lanish", path: '/contact' },
 ];

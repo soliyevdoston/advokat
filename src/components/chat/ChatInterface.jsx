@@ -10,6 +10,7 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef(null);
 
+  
   const contacts = [
     { id: 'ai', name: 'Advokat Yordamchisi', status: 'online', type: 'ai' },
     { id: 1, name: 'Azizov Bahrom', status: 'online', type: 'lawyer' },
@@ -39,7 +40,9 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
         id: Date.now() + 1, 
         text: type === 'ai' 
           ? "Hujjatni tayyorlash uchun menga qo'shimcha ma'lumotlar kerak. Iltimos, batafsilroq tushuntiring." 
-          : "Assalomu alaykum! Murojaatingiz uchun rahmat. Hozirgi kunda bandman, lekin tez orada javob beraman.",
+          : type === 'expert'
+            ? "Murojaatingiz qabul qilindi. Tez orada ma'muriyatimiz siz bilan bog'lanadi va advokat bilan uchrashuv belgilashga yordam beradi."
+            : "Assalomu alaykum! Murojaatingiz uchun rahmat. Hozirgi kunda bandman, lekin tez orada javob beraman.",
         sender: 'bot', 
         timestamp: new Date() 
       };

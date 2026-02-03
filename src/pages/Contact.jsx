@@ -35,8 +35,8 @@ export default function Contact() {
                      <Phone size={24} />
                    </div>
                    <div>
-                     <p className="font-bold text-slate-900 mb-1">Telefon</p>
-                     <p className="text-slate-600">+998 71 200 00 00</p>
+                     <p className="font-bold text-slate-900 mb-1">Call-markaz</p>
+                     <p className="text-slate-600">Qisqa raqam: 1144</p>
                      <p className="text-slate-600 text-sm">Dushanba - Shanba, 9:00 - 18:00</p>
                    </div>
                  </div>

@@ -2,15 +2,35 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Star, MapPin, Briefcase, Award, GraduationCap, MessageSquare, Phone, Globe } from 'lucide-react';
 import Button from '../ui/Button';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 export default function LawyerModal({ lawyer, isOpen, onClose }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+
   if (!isOpen || !lawyer) return null;
+
+  const handleAdminContact = () => {
+    if (user) {
+      navigate(`/chat/lawyer/${lawyer.id}`);
+    } else {
+      onClose();
+      navigate('/auth', { 
+        state: { 
+          isLogin: false, 
+          from: location 
+        } 
+      });
+    }
+  };
 
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
         <motion.div
+// ... (rest of the file content preserved, just change the import and the button logic)
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -105,18 +125,16 @@ export default function LawyerModal({ lawyer, isOpen, onClose }) {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 mt-6">
-                <Link to={`/chat/lawyer/${lawyer.id}`} className="flex-1">
+                <div className="flex-1">
                   <Button 
+                    onClick={handleAdminContact}
                     className="w-full gap-2 btn-primary shadow-lg shadow-blue-900/20" 
                     size="lg"
                   >
                     <MessageSquare size={20} />
-                    Xabar yozish
+                    Admin orqali bog'lanish
                   </Button>
-                </Link>
-                <Button variant="outline" size="lg" className="px-6 border-slate-200 hover:border-[var(--color-primary)] text-slate-600 hover:text-[var(--color-primary)] hover:bg-blue-50">
-                  <Phone size={20} />
-                </Button>
+                </div>
               </div>
             </div>
           </div>

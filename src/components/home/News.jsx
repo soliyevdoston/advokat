@@ -49,19 +49,19 @@ export default function News() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="flex overflow-x-auto md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8 pb-4 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 snap-x">
           {newsItems.map((item, index) => (
-            <div key={index} className="group p-6 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:border-[var(--color-primary)]/20 transition-all duration-300 hover:-translate-y-2">
-              <div className={`w-14 h-14 rounded-2xl ${item.color} flex items-center justify-center mb-6 shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform duration-300 rotate-3 group-hover:rotate-0`}>
+            <div key={index} className="min-w-[280px] md:min-w-0 snap-center group p-5 md:p-6 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:border-[var(--color-primary)]/20 transition-all duration-300 hover:-translate-y-2 flex flex-col h-full">
+              <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl ${item.color} flex items-center justify-center mb-4 md:mb-6 shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform duration-300 rotate-3 group-hover:rotate-0 shrink-0`}>
                 {item.icon}
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-[var(--color-primary)] transition-colors">
+              <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-2 md:mb-3 group-hover:text-[var(--color-primary)] transition-colors line-clamp-1 md:line-clamp-2">
                 {item.title}
               </h3>
-              <p className="text-slate-600 mb-4 line-clamp-3 text-sm leading-relaxed">
+              <p className="text-slate-600 mb-4 line-clamp-2 md:line-clamp-3 text-sm leading-relaxed flex-grow">
                 {item.desc}
               </p>
-              <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+              <div className="flex items-center justify-between pt-4 border-t border-slate-50 mt-auto">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                   {item.date}
                 </span>

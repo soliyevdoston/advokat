@@ -14,10 +14,10 @@ export default function ChatPage() {
   if (type === 'lawyer' && id) {
     const lawyer = lawyers.find(l => l.id === parseInt(id));
     if (lawyer) {
-      title = lawyer.name;
-      subtitle = lawyer.specialization;
-      initial = `Assalomu alaykum! Men ${lawyer.name}, advokatman. Sizga qanday yordam bera olaman?`;
-      chatType = 'lawyer';
+      title = `${lawyer.name} (Ma'muriyat)`;
+      subtitle = "Bog'lanish uchun so'rov qoldiring";
+      initial = `Assalomu alaykum! Men advokat ${lawyer.name}ning ma'muriman. Advokat bilan bog'lanish uchun iltimos, ishingiz bo'yicha qisqacha ma'lumot bering.`;
+      chatType = 'expert'; // Changed from 'lawyer' to 'expert' or kept 'lawyer' but logic handled in interface
     }
   } else if (type === 'document') {
     title = "Hujjatlar Generatori";

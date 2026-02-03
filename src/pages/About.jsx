@@ -34,52 +34,64 @@ export default function About() {
   ];
 
   return (
-    <div className="bg-white min-h-screen pt-32 pb-20 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Header / Hero */}
-        <div className="grid lg:grid-cols-2 gap-16 items-center mb-24">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h1 className="text-4xl md:text-6xl font-serif font-bold text-slate-900 mb-6 leading-tight">
-              Adolat va qonun <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--color-primary)] to-blue-600">ustuvorligi</span> yo'lida
-            </h1>
-            <p className="text-lg text-slate-600 mb-8 leading-relaxed">
-              "Advokat" platformasi O'rta Osiyoda huquqiy xizmatlarni raqamlashtirish va aholiga sifatli yuridik yordam ko'rsatish maqsadida tashkil etilgan innovatsion loyihadir. Bizning maqsadimiz — har bir inson uchun huquqiy himoyani qulay va ishonchli qilish.
-            </p>
-            
-            <div className="flex gap-4">
-              <Link to="/lawyers">
-                <Button className="btn-primary" size="lg">
-                  Jamoamiz bilan tanishing <ArrowRight size={20} className="ml-2" />
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="relative"
-          >
-            <div className="relative rounded-[2rem] overflow-hidden shadow-2xl aspect-square">
-              <img 
-                src="https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&q=80&w=2000" 
-                alt="Our Team" 
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-blue-900/20 mix-blend-multiply" />
-            </div>
-            {/* Decor elements */}
-            <div className="absolute -bottom-8 -right-8 w-64 h-64 bg-[var(--color-secondary)]/20 rounded-full blur-3xl -z-10" />
-            <div className="absolute top-8 -left-8 w-32 h-32 border-4 border-[var(--color-primary)]/10 rounded-full -z-10" />
-          </motion.div>
+    <div className="bg-white min-h-screen">
+      {/* Hero Background Section */}
+      <div className="relative pt-32 pb-20 overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <img 
+            src="https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=2000" 
+            alt="Background" 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-slate-900/70 mix-blend-multiply" />
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-transparent to-slate-900/90" />
         </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          {/* Header / Hero Content */}
+          <div className="grid lg:grid-cols-2 gap-16 items-center mb-12">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <h1 className="text-4xl md:text-6xl font-serif font-bold text-white mb-6 leading-tight">
+                Adolat va qonun <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-blue-100">ustuvorligi</span> yo'lida
+              </h1>
+              <p className="text-lg text-slate-200 mb-8 leading-relaxed">
+                O'rta Osiyoda yagona ixtisoslashtirilgan huquqiy platformamiz orqali tajribali advokatlar va sun'iy intellekt yordamidan foydalaning. Biz mintaqadagi huquqiy savodxonlikni oshirish va sifatli yuridik yordamni barchaga ochiq qilishni maqsad qilganmiz.
+              </p>
+              
+              <div className="flex gap-4">
+                <Link to="/lawyers">
+                  <Button className="bg-white text-[var(--color-primary)] hover:bg-blue-50 border-none" size="lg">
+                    Jamoamiz bilan tanishing <ArrowRight size={20} className="ml-2" />
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="relative"
+            >
+              <div className="relative rounded-[2rem] overflow-hidden shadow-2xl aspect-square border-4 border-white/10">
+                <img 
+                  src="/src/assets/about-map.jpg" 
+                  alt="Our Coverage Map" 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-blue-900/10 mix-blend-multiply" />
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-24">

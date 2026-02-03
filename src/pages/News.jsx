@@ -69,16 +69,27 @@ export default function NewsPage() {
     : news.filter(item => item.category === activeCategory);
 
   return (
-    <div className="bg-slate-50 min-h-screen pt-32 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-serif font-bold text-slate-900 mb-6">Huquqiy Yangiliklar va Tahlillar</h1>
-          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+    <div className="bg-slate-50 min-h-screen">
+      {/* Hero Header */}
+      <div className="relative pt-32 pb-20 overflow-hidden bg-slate-900">
+        <div className="absolute inset-0 z-0">
+          <img 
+            src="https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=2000" 
+            alt="Background" 
+            className="w-full h-full object-cover opacity-50"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-transparent to-slate-900/90" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h1 className="text-4xl md:text-6xl font-serif font-bold text-white mb-6">Huquqiy Yangiliklar</h1>
+          <p className="text-lg text-slate-200 max-w-2xl mx-auto leading-relaxed">
             Qonunchilikdagi so'nggi o'zgarishlar, sud amaliyoti tahlillari va professional yuristlarning foydali maslahatlari bilan tanishing.
           </p>
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-20 pb-20">
 
         {/* Filters and Search */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-12">
@@ -148,40 +159,41 @@ export default function NewsPage() {
         )}
 
         {/* News Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
           {(activeCategory === 'Barchasi' ? news.slice(1) : filteredNews).map((item) => (
-            <article key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-shadow border border-gray-100 flex flex-col group">
-              <div className="relative h-48 overflow-hidden">
+            <article key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-300 border border-slate-100 flex flex-col group h-full">
+              <div className="relative h-40 md:h-56 overflow-hidden">
                 <img 
                   src={item.image} 
                   alt={item.title} 
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 />
-                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-lg text-xs font-bold text-[var(--color-primary)]">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="absolute top-3 left-3 md:top-4 md:left-4 bg-white/95 backdrop-blur-md px-2 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs font-bold text-[var(--color-primary)] shadow-lg">
                   {item.category}
                 </div>
               </div>
               
-              <div className="p-6 flex flex-col flex-grow">
-                <div className="flex items-center gap-4 text-xs text-slate-400 mb-3">
+              <div className="p-4 md:p-6 flex flex-col flex-grow">
+                <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-xs text-slate-400 mb-2 md:mb-3">
                   <span className="flex items-center gap-1">
-                    <Calendar size={14} /> {item.date}
+                    <Calendar size={12} className="md:w-3.5 md:h-3.5" /> {item.date}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Clock size={14} /> {item.readTime}
+                    <Clock size={12} className="md:w-3.5 md:h-3.5" /> {item.readTime}
                   </span>
                 </div>
                 
-                <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-[var(--color-primary)] transition-colors line-clamp-2">
+                <h3 className="text-sm md:text-xl font-bold text-slate-900 mb-2 md:mb-3 group-hover:text-[var(--color-primary)] transition-colors line-clamp-2 leading-tight">
                   {item.title}
                 </h3>
                 
-                <p className="text-slate-600 text-sm mb-4 line-clamp-3 leading-relaxed flex-grow">
+                <p className="text-slate-600 text-xs md:text-sm mb-3 md:mb-4 line-clamp-3 leading-relaxed flex-grow">
                   {item.excerpt}
                 </p>
                 
-                <a href="#" className="inline-flex items-center text-[var(--color-primary)] font-medium text-sm hover:text-blue-700 transition-colors mt-auto">
-                  Davomini o'qish <ArrowRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                <a href="#" className="inline-flex items-center text-[var(--color-primary)] font-medium text-xs md:text-sm hover:text-blue-700 transition-colors mt-auto">
+                  Davomini o'qish <ArrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform md:w-4 md:h-4" />
                 </a>
               </div>
             </article>
