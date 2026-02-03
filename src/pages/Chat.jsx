@@ -11,13 +11,19 @@ export default function ChatPage() {
   let initial = "Assalomu alaykum! Sizga qanday yuridik yordam kerak?";
   let chatType = 'ai';
 
-  if (type === 'lawyer' && id) {
+  if (type === 'support') {
+    title = "Platforma Mutaxassisi";
+    subtitle = "Sizga mos advokat topishda yordam beraman";
+    initial = "Assalomu alaykum! Men LegalLink platformasi mutaxassisiman. Sizga qanday yuridik yordam kerak? Muammoingizni qisqacha yozib qoldiring, biz siz uchun eng yaxshi advokatni topib beramiz.";
+    chatType = 'expert'; 
+  } else if (type === 'lawyer' && id) {
     const lawyer = lawyers.find(l => l.id === parseInt(id));
     if (lawyer) {
-      title = `${lawyer.name} (Ma'muriyat)`;
-      subtitle = "Bog'lanish uchun so'rov qoldiring";
-      initial = `Assalomu alaykum! Men advokat ${lawyer.name}ning ma'muriman. Advokat bilan bog'lanish uchun iltimos, ishingiz bo'yicha qisqacha ma'lumot bering.`;
-      chatType = 'expert'; // Changed from 'lawyer' to 'expert' or kept 'lawyer' but logic handled in interface
+      // Direct lawyer chat is restricted, show Admin mediation interface
+      title = "Platforma Admini";
+      subtitle = `${lawyer.name} bilan bog'lanish bo'yicha`;
+      initial = `Assalomu alaykum! Siz advokat ${lawyer.name} bilan bog'lanmoqchisiz. Iltimos, ishingiz bo'yicha qisqacha ma'lumot bering. Biz so'rovingizni advokatga yetkazamiz va uchrashuv vaqtini belgilaymiz.`;
+      chatType = 'expert';
     }
   } else if (type === 'document') {
     title = "Hujjatlar Generatori";

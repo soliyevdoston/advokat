@@ -2,8 +2,11 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare, FileJson, ArrowRight, Bot } from 'lucide-react';
 import Button from '../ui/Button';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function Chatbots() {
+  const { t } = useLanguage();
+
   return (
     <section className="py-24 bg-slate-50 relative overflow-hidden">
       {/* Background blobs */}
@@ -14,9 +17,9 @@ export default function Chatbots() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center mb-16">
-          <h2 className="text-3xl lg:text-4xl font-serif font-bold text-slate-900 mb-4">Sun'iy Intellekt Yordamchilari</h2>
+          <h2 className="text-3xl lg:text-4xl font-serif font-bold text-slate-900 mb-4">{t('chatbots.title')}</h2>
           <p className="text-slate-600 max-w-2xl mx-auto">
-            Bizning aqlli tizimimiz orqali vaqtingizni tejang va sifatli yuridik xizmatdan foydalaning
+            {t('chatbots.subtitle')}
           </p>
         </div>
 
@@ -31,14 +34,14 @@ export default function Chatbots() {
                  <FileJson className="w-8 h-8 text-blue-300 group-hover:text-white" />
                </div>
                
-               <h3 className="text-3xl font-serif font-bold mb-4">Hujjatlar yordamchisi</h3>
+               <h3 className="text-3xl font-serif font-bold mb-4">{t('chatbots.doc_bot.title')}</h3>
                <p className="text-slate-400 mb-8 text-lg leading-relaxed flex-grow">
-                 Sun'iy intellekt yordamida har qanday huquqiy hujjatlarni bir necha daqiqada tayyorlang. Ariza, shikoyat va shartnomalar.
+                 {t('chatbots.doc_bot.desc')}
                </p>
                
                <Link to="/chat/document">
                  <Button className="bg-blue-600 hover:bg-blue-500 border-none w-full sm:w-auto text-white shadow-lg shadow-blue-900/50">
-                   Hujjat yaratish <ArrowRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                   {t('chatbots.doc_bot.btn')} <ArrowRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                  </Button>
                </Link>
              </div>
@@ -53,16 +56,16 @@ export default function Chatbots() {
                  <Bot className="w-8 h-8 text-[var(--color-primary)] group-hover:text-white" />
                </div>
                
-               <h3 className="text-3xl font-serif font-bold mb-4">Yurist Konsultant</h3>
+               <h3 className="text-3xl font-serif font-bold mb-4">{t('chatbots.lawyer_bot.title')}</h3>
                <p className="text-slate-600 mb-8 text-lg leading-relaxed flex-grow">
-                 Sizning muammoingiz bo'yicha eng mos advokatni topishga va birlamchi maslahat olishga yordam beruvchi aqlli chatbot.
+                 {t('chatbots.lawyer_bot.desc')}
                </p>
                
-               <Link to="/chat/lawyer">
-                 <Button variant="outline" className="border-2 border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white w-full sm:w-auto">
-                   Advokat bilan bog'lanish <MessageSquare size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
-                 </Button>
-               </Link>
+                <Link to="/chat/support">
+                  <Button variant="outline" className="border-2 border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white w-full sm:w-auto">
+                    {t('chatbots.lawyer_bot.btn')} <MessageSquare size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
              </div>
           </div>
 

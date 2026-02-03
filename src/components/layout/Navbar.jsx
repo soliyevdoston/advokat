@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../ui/Button';
 import Logo from '../ui/Logo';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const { user } = useAuth();
+  const { currentLanguage, changeLanguage, languages, t } = useLanguage();
   const isHome = location.pathname === '/';
 
   useEffect(() => {
@@ -35,6 +37,12 @@ export default function Navbar() {
     }
     return 'text-[var(--color-primary)]';
   };
+
+  const navLinks = [
+    { name: t('nav.home'), path: '/' },
+    { name: t('nav.lawyers'), path: '/lawyers' },
+    { name: t('nav.about'), path: '/about' },
+  ];
 
   return (
     <nav 
@@ -68,23 +76,43 @@ export default function Navbar() {
             ))}
             
             <div className="flex items-center gap-4">
+              {/* Language Switcher - Dropdown with Flags */}
+              <div className="relative group mr-2">
+                 <select 
+                    value={currentLanguage}
+                    onChange={(e) => changeLanguage(e.target.value)}
+                    className={`appearance-none bg-transparent font-medium text-sm focus:outline-none cursor-pointer pr-4 py-1 border border-transparent rounded-md ${
+                        isHome && !scrolled 
+                            ? 'text-white hover:bg-white/10' 
+                            : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                    style={{ textAlignLast: 'center' }}
+                 >
+                    {languages.map(lang => (
+                        <option key={lang.code} value={lang.code} className="text-slate-900 bg-white">
+                            {lang.flag} {lang.name}
+                        </option>
+                    ))}
+                 </select>
+              </div>
+
               {user ? (
                 <Link to="/dashboard">
                   <Button variant="outline" className={`border-transparent px-4 gap-2 ${isHome && !scrolled ? 'text-white hover:bg-white/10' : 'text-[var(--color-primary)] hover:bg-blue-50'}`}>
                     <User size={20} />
-                    {user.name}
+                    {t('nav.dashboard')}
                   </Button>
                 </Link>
               ) : (
                 <>
                   <Link to="/auth">
                     <Button variant="outline" className={`border-transparent px-4 ${isHome && !scrolled ? 'text-white hover:bg-white/10' : 'text-[var(--color-primary)] hover:bg-blue-50'}`}>
-                      Kirish
+                      {t('nav.login')}
                     </Button>
                   </Link>
                   <Link to="/auth" state={{ isLogin: false }}>
                      <Button className={`${isHome && !scrolled ? 'bg-white text-[var(--color-primary)] hover:bg-blue-50' : 'btn-primary'}`}>
-                       Ro'yxatdan o'tish
+                       {t('nav.register')}
                      </Button>
                   </Link>
                 </>
@@ -92,8 +120,23 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="md:hidden">
+          {/* Mobile Menu & Language Switcher */}
+          <div className="md:hidden flex items-center gap-4">
+            {/* Mobile Language Switcher (Visible outside menu) */}
+            <select 
+                value={currentLanguage}
+                onChange={(e) => changeLanguage(e.target.value)}
+                className={`appearance-none bg-transparent font-medium text-sm focus:outline-none cursor-pointer border border-transparent rounded-md pr-1 ${
+                    isHome && !scrolled ? 'text-white' : 'text-slate-600'
+                }`}
+            >
+                {languages.map(lang => (
+                    <option key={lang.code} value={lang.code} className="text-slate-900 bg-white">
+                        {lang.flag} {lang.code.toUpperCase()}
+                    </option>
+                ))}
+            </select>
+
             <button
               onClick={() => setIsOpen(!isOpen)}
               className={`p-2 transition-colors ${isHome && !scrolled ? 'text-white' : 'text-slate-600'}`}
@@ -132,16 +175,16 @@ export default function Navbar() {
                 {user ? (
                   <Link to="/dashboard" onClick={() => setIsOpen(false)}>
                     <Button className="w-full btn-primary justify-center gap-2">
-                       <User size={20} /> Kabinetga o'tish
+                       <User size={20} /> {t('nav.dashboard')}
                     </Button>
                   </Link>
                 ) : (
                   <>
                     <Link to="/auth" onClick={() => setIsOpen(false)}>
-                      <Button variant="outline" className="w-full justify-center">Kirish</Button>
+                      <Button variant="outline" className="w-full justify-center">{t('nav.login')}</Button>
                     </Link>
                     <Link to="/auth" state={{ isLogin: false }} onClick={() => setIsOpen(false)}>
-                      <Button className="w-full btn-primary justify-center">Ro'yxatdan o'tish</Button>
+                      <Button className="w-full btn-primary justify-center">{t('nav.register')}</Button>
                     </Link>
                   </>
                 )}
@@ -153,10 +196,3 @@ export default function Navbar() {
     </nav>
   );
 }
-
-const navLinks = [
-  { name: 'Asosiy', path: '/' },
-  { name: 'Advokatlar', path: '/lawyers' },
-  { name: 'Yangiliklar', path: '/news' },
-  { name: 'Biz haqimizda', path: '/about' },
-];

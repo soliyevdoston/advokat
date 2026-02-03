@@ -2,48 +2,53 @@ import React from 'react';
 import { Briefcase, Scale, Users, FileText, Globe, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-
-const services = [
-  {
-    icon: <Scale className="w-8 h-8 text-[var(--color-primary)]" />,
-    title: "Jinoyat huquqi",
-    desc: "Jinoyat ishlari bo'yicha himoya va maslahatlar. Tergov va sud jarayonlarida ishtirok etish."
-  },
-  {
-    icon: <Users className="w-8 h-8 text-[var(--color-primary)]" />,
-    title: "Oila huquqi",
-    desc: "Nikohdan ajralish, aliment, mulk bo'linishi va farzandlikka olish masalalari bo'yicha yordam."
-  },
-  {
-    icon: <Briefcase className="w-8 h-8 text-[var(--color-primary)]" />,
-    title: "Biznes va Korporativ",
-    desc: "Biznesni ro'yxatdan o'tkazish, shartnomalar tuzish va korporativ nizolarni hal qilish."
-  },
-  {
-    icon: <FileText className="w-8 h-8 text-[var(--color-primary)]" />,
-    title: "Fuqarolik huquqi",
-    desc: "Mulk, meros, qarz va boshqa fuqarolik nizolarini qonuniy hal etish xizmatlari."
-  },
-  {
-    icon: <Globe className="w-8 h-8 text-[var(--color-primary)]" />,
-    title: "Xalqaro huquq",
-    desc: "Chet el fuqarolari va kompaniyalari uchun huquqiy maslahatlar va vakillik."
-  },
-  {
-    icon: <ShieldCheck className="w-8 h-8 text-[var(--color-primary)]" />,
-    title: "Mehnat huquqi",
-    desc: "Ish beruvchi va xodim o'rtasidagi nizolar, noqonuniy ishdan bo'shatish masalalari."
-  }
-];
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function Services() {
+  const { t } = useLanguage();
+
+  const services = [
+    {
+      icon: <Scale className="w-8 h-8 text-[var(--color-primary)]" />,
+      title: t('services.items.protection.title'),
+      desc: t('services.items.protection.desc')
+    },
+    {
+      icon: <Users className="w-8 h-8 text-[var(--color-primary)]" />,
+      title: t('services.items.consultation.title'),
+      desc: t('services.items.consultation.desc')
+    },
+    {
+      icon: <Briefcase className="w-8 h-8 text-[var(--color-primary)]" />,
+      title: t('services.items.business.title'),
+      desc: t('services.items.business.desc')
+    },
+    {
+      icon: <FileText className="w-8 h-8 text-[var(--color-primary)]" />,
+      title: t('services.items.documents.title'),
+      desc: t('services.items.documents.desc')
+    },
+    // Adding fallbacks or reusing keys for demo if specific keys don't exist for all 6 items
+    // Using existing keys for demonstration as requested plan didn't expand to 6 items
+    {
+      icon: <Globe className="w-8 h-8 text-[var(--color-primary)]" />,
+      title: "Xalqaro huquq", 
+      desc: "Chet el fuqarolari va kompaniyalari uchun huquqiy maslahatlar va vakillik."
+    },
+    {
+      icon: <ShieldCheck className="w-8 h-8 text-[var(--color-primary)]" />,
+      title: "Mehnat huquqi",
+      desc: "Ish beruvchi va xodim o'rtasidagi nizolar, noqonuniy ishdan bo'shatish masalalari."
+    }
+  ];
+
   return (
     <section className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-serif font-bold text-slate-900 mb-4">Bizning Xizmatlar</h2>
+          <h2 className="text-3xl md:text-5xl font-serif font-bold text-slate-900 mb-4">{t('services.title')}</h2>
           <p className="text-slate-600 max-w-2xl mx-auto text-lg">
-            Biz barcha turdagi huquqiy masalalar bo'yicha professional yordam ko'rsatamiz.
+            {t('services.subtitle')}
           </p>
         </div>
 
