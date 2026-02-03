@@ -9,7 +9,7 @@ export default function Hero() {
   const { t } = useLanguage();
 
   return (
-    <section className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden pt-20">
+    <section className="relative min-h-screen w-full flex items-center justify-center overflow-hidden pt-32 pb-16">
       {/* Background Image with Overlay */}
       <div className="absolute inset-0 z-0">
         <img 
@@ -17,8 +17,8 @@ export default function Hero() {
           alt="Modern Law Office" 
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-slate-900/60 mix-blend-multiply" />
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-transparent to-slate-900/40" />
+        <div className="absolute inset-0 bg-slate-950/70" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent opacity-80" />
       </div>
 
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
@@ -27,7 +27,7 @@ export default function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-8">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-6">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
@@ -35,11 +35,11 @@ export default function Hero() {
             <span className="text-sm font-medium tracking-wide">O'rta Osiyoda yagona huquqiy platforma</span>
           </div>
           
-          <h1 className="text-4xl md:text-7xl lg:text-8xl font-serif font-bold leading-tight mb-6 md:mb-8 tracking-tight">
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif font-bold leading-tight mb-6 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-blue-200 drop-shadow-2xl">
             {t('hero.title')}
           </h1>
           
-          <p className="text-lg md:text-2xl text-slate-200 mb-8 md:mb-12 max-w-3xl mx-auto font-light leading-relaxed px-4">
+          <p className="text-lg md:text-xl text-slate-200 mb-8 max-w-3xl mx-auto font-light leading-relaxed px-4">
             {t('hero.subtitle')}
           </p>
 
@@ -60,7 +60,7 @@ export default function Hero() {
           </div>
 
           {/* Stats / Trust Indicators */}
-          <div className="mt-20 pt-10 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="mt-16 pt-8 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
               { label: t('hero.stats.reviews'), value: "98%" },
               { label: "Tajriba", value: "10+ Yil" },

@@ -57,9 +57,28 @@ export const translations = {
     },
     footer: {
       desc: "LegalLink - O'zbekistondagi eng yirik yuridik xizmatlar platformasi.",
+      links: "Tezkor havolalar",
+      services: "Xizmatlar",
       contact: "Bog'lanish",
       address: "Toshkent sh., Amir Temur ko'chasi, 108",
-      rights: "Barcha huquqlar himoyalangan."
+      rights: "Barcha huquqlar himoyalangan.",
+      privacy: "Maxfiylik siyosati",
+      terms: "Foydalanish shartlari"
+    },
+    auth: {
+      welcome: "Xush kelibsiz!",
+      register_title: "Ro'yxatdan o'tish",
+      login_desc: "Platformaga kirish uchun ma'lumotlaringizni kiriting",
+      register_desc: "Professional yuridik yordam olishni boshlang",
+      login_btn: "Kirish",
+      register_btn: "Ro'yxatdan o'tish",
+      name: "To'liq ismingiz",
+      name_placeholder: "Azizbek Tursunov",
+      email: "Email manzili",
+      password: "Parol",
+      forgot: "Parolni unutdingizmi?",
+      or: "Yoki bu orqali kiring",
+      google: "Google orqali davom etish"
     }
   },
   oz: {
@@ -114,15 +133,34 @@ export const translations = {
       },
       lawyer_bot: {
         title: "Платформа Мутахассиси",
-        desc: "Сизга мос адвокат топишда ёрдам берувчи мутахассис билан боғланинг.",
+        desc: "Сизга мос адвокат топишда ёрдам берувчи мутахассис билан боғланиш.",
         btn: "Мутахассис билан боғланиш"
       }
     },
     footer: {
       desc: "LegalLink - Ўзбекистондаги энг йирик юридик хизматлар платформаси.",
+      links: "Тезкор ҳаволалар",
+      services: "Хизматлар",
       contact: "Боғланиш",
       address: "Тошкент ш., Амир Темур кўчаси, 108",
-      rights: "Барча ҳуқуқлар ҳимояланган."
+      rights: "Барча ҳуқуқлар ҳимояланган.",
+      privacy: "Махфийлик сиёсати",
+      terms: "Фойдаланиш шартлари"
+    },
+    auth: {
+      welcome: "Хуш келибсиз!",
+      register_title: "Рўйхатдан ўтиш",
+      login_desc: "Платформага кириш учун маълумотларингизни киритинг",
+      register_desc: "Профессионал юридик ёрдам олишни бошланг",
+      login_btn: "Кириш",
+      register_btn: "Рўйхатдан ўтиш",
+      name: "Тўлиқ исмингиз",
+      name_placeholder: "Азизбек Турсунов",
+      email: "Email манзили",
+      password: "Парол",
+      forgot: "Паролни унутдингизми?",
+      or: "Ёки бу орқали киринг",
+      google: "Google орқали давом этиш"
     }
   },
   ru: {
@@ -183,9 +221,28 @@ export const translations = {
     },
     footer: {
       desc: "LegalLink - Крупнейшая платформа юридических услуг в Узбекистане.",
+      links: "Быстрые ссылки",
+      services: "Услуги",
       contact: "Контакты",
       address: "г. Ташкент, ул. Амира Темура, 108",
-      rights: "Все права защищены."
+      rights: "Все права защищены.",
+      privacy: "Политика конфиденциальности",
+      terms: "Условия использования"
+    },
+    auth: {
+      welcome: "Добро пожаловать!",
+      register_title: "Регистрация",
+      login_desc: "Введите свои данные для входа в платформу",
+      register_desc: "Начните получать профессиональную юридическую помощь",
+      login_btn: "Войти",
+      register_btn: "Регистрация",
+      name: "Ваше полное имя",
+      name_placeholder: "Азизбек Турсунов",
+      email: "Email адрес",
+      password: "Пароль",
+      forgot: "Забыли пароль?",
+      or: "Или войдите через",
+      google: "Продолжить с Google"
     }
   },
   en: {
@@ -246,9 +303,28 @@ export const translations = {
     },
     footer: {
       desc: "LegalLink - The largest legal services platform in Uzbekistan.",
+      links: "Quick Links",
+      services: "Services",
       contact: "Contact",
       address: "Tashkent city, Amir Temur street, 108",
-      rights: "All rights reserved."
+      rights: "All rights reserved.",
+      privacy: "Privacy Policy",
+      terms: "Terms of Service"
+    },
+    auth: {
+      welcome: "Welcome Back!",
+      register_title: "Register",
+      login_desc: "Enter your details to access the platform",
+      register_desc: "Start getting professional legal help",
+      login_btn: "Login",
+      register_btn: "Register",
+      name: "Full Name",
+      name_placeholder: "John Doe",
+      email: "Email Address",
+      password: "Password",
+      forgot: "Forgot Password?",
+      or: "Or continue with",
+      google: "Continue with Google"
     }
   }
 };
