@@ -33,7 +33,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="pt-28 pb-20 bg-gray-50 min-h-screen">
+    <div className="pt-28 pb-20 bg-gray-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <ChatInterface 
           title={title} 

@@ -18,7 +18,7 @@ const Constitution = () => {
                     <BookOpen className="w-6 h-6" />
                     <span className="font-medium tracking-wide uppercase text-sm font-sans">{t('constitution.title')}</span>
                 </div>
-                <h2 className="text-3xl md:text-5xl font-serif font-bold mb-8 leading-tight tracking-tight">
+                <h2 className="text-3xl md:text-5xl font-serif font-bold mb-8 leading-tight tracking-tight bg-gradient-to-r from-emerald-200 via-white to-emerald-200 bg-clip-text text-transparent drop-shadow-sm">
                     {t('constitution.subtitle')}
                 </h2>
                  <Link 

@@ -12,12 +12,18 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef(null);
 
-  const contacts = [
+  const allContacts = [
     { id: 'ai', name: t('chat_interface.roles.ai'), status: 'online', type: 'ai' },
     { id: 1, name: 'Azizov Bahrom', status: 'online', type: 'lawyer' },
     { id: 2, name: 'Karimova Nargiza', status: 'offline', type: 'lawyer' },
     { id: 3, name: 'Toshmatov Dilshod', status: 'online', type: 'lawyer' },
   ];
+
+  const contacts = allContacts.filter(contact => {
+    if (type === 'ai') return contact.type === 'ai';
+    if (type === 'expert' || type === 'lawyer') return contact.type === 'lawyer';
+    return true;
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
