@@ -147,10 +147,14 @@ const Lawyers = () => {
                                 <MessageSquare size={18} />
                                 {t('lawyer_card.chat_btn')}
                              </Link>
-                             <button onClick={(e) => e.stopPropagation()} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-200 dark:shadow-none">
+                             <Link 
+                                to={`/chat/lawyer/${lawyer.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-200 dark:shadow-none"
+                             >
                                 <Phone size={18} />
                                 {t('lawyer_card.call_btn')}
-                             </button>
+                             </Link>
                         </div>
                     </motion.div>
                     ))}

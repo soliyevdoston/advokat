@@ -137,9 +137,9 @@ const LawyerModal = ({ lawyer, isOpen, onClose }) => {
                  <Button onClick={handleContact} className="flex-1 py-3 text-lg font-bold shadow-lg shadow-blue-500/20">
                      <MessageSquare size={18} className="mr-2" /> {t('lawyer_card.chat_btn')}
                  </Button>
-                 <Button variant="outline" className="flex-1 py-3 text-lg font-medium border-slate-200 dark:border-slate-600 dark:text-white dark:hover:bg-slate-700">
-                     <Phone size={18} className="mr-2" /> {t('lawyer_card.call_btn')}
-                 </Button>
+                  <Button onClick={handleContact} variant="outline" className="flex-1 py-3 text-lg font-medium border-slate-200 dark:border-slate-600 dark:text-white dark:hover:bg-slate-700">
+                      <Phone size={18} className="mr-2" /> {t('lawyer_card.call_btn')}
+                  </Button>
              </div>
           </div>
         </motion.div>
