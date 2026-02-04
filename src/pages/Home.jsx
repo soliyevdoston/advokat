@@ -7,12 +7,14 @@ import Testimonials from '../components/home/Testimonials';
 import Pricing from '../components/home/Pricing';
 import FAQ from '../components/home/FAQ';
 import CTA from '../components/home/CTA';
+import Constitution from '../components/home/Constitution';
 
 export default function Home() {
   return (
     <div className="font-sans antialiased overflow-x-hidden">
       <Hero />
       <Services />
+      <Constitution />
       <Pricing />
       <Chatbots />
       <News />

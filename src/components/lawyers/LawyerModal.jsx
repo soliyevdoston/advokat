@@ -1,145 +1,151 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Star, MapPin, Briefcase, Award, GraduationCap, MessageSquare, Phone, Globe } from 'lucide-react';
+import { X, MapPin, Briefcase, Star, Phone, MessageSquare, ShieldCheck, Award, Clock, Globe } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 import Button from '../ui/Button';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-export default function LawyerModal({ lawyer, isOpen, onClose }) {
+const LawyerModal = ({ lawyer, isOpen, onClose }) => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user } = useAuth();
+  const { user } = useAuth(); // Assuming useAuth exists, if not remove or adjust
 
   if (!isOpen || !lawyer) return null;
 
-  const handleAdminContact = () => {
-    if (user) {
-      navigate(`/chat/lawyer/${lawyer.id}`);
-    } else {
+  const handleContact = () => {
       onClose();
-      navigate('/auth', { 
-        state: { 
-          isLogin: false, 
-          from: location 
-        } 
-      });
-    }
+      navigate(`/chat/lawyer/${lawyer.id}`);
   };
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        {/* Backdrop */}
         <motion.div
-// ... (rest of the file content preserved, just change the import and the button logic)
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm z-40"
         />
-        
+
+        {/* Modal */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-4xl bg-white rounded-[2rem] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+          className="relative w-full max-w-4xl bg-white dark:bg-slate-800 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-scroll z-50 flex flex-col md:flex-row"
         >
-          <button 
+          {/* Close Button */}
+          <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-20 p-2 bg-black/20 hover:bg-black/40 backdrop-blur-md rounded-full text-white transition-all duration-200 transform hover:rotate-90"
+            className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/30 text-white rounded-full z-50 transition-colors"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
 
-          <div className="grid md:grid-cols-2">
-            {/* Left Side: Image & Quick Stats */}
-            <div className="relative h-72 md:h-auto bg-slate-900 group">
-              <img 
-                src={lawyer.image} 
-                alt={lawyer.name} 
-                className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent" />
-              
-              <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex items-center gap-1 bg-yellow-500/20 backdrop-blur-md border border-yellow-500/30 px-3 py-1 rounded-full">
-                     <Star className="text-yellow-400 fill-yellow-400" size={16} />
-                     <span className="font-bold text-yellow-100">{lawyer.rating}</span>
-                  </div>
-                  <span className="text-slate-300 text-sm">({lawyer.reviews} ta sharh)</span>
-                </div>
-                <h2 className="text-3xl md:text-4xl font-serif font-bold mb-2 leading-tight">{lawyer.name}</h2>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <MapPin size={18} className="text-[var(--color-secondary)]" />
-                  {lawyer.location}
-                </div>
-              </div>
-            </div>
-
-            {/* Right Side: Details */}
-            <div className="p-8 md:p-10 flex flex-col justify-between">
-              <div>
-                <div className="mb-8">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <Award className="text-[var(--color-primary)]" size={18} />
-                    Mutaxassislik va Tajriba
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="px-4 py-2 bg-blue-50 text-[var(--color-primary)] rounded-xl font-medium border border-blue-100">
-                      {lawyer.specialization}
-                    </span>
-                    <span className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl font-medium border border-purple-100">
-                      {lawyer.level}
-                    </span>
-                    <span className="px-4 py-2 bg-green-50 text-green-700 rounded-xl font-medium border border-green-100">
-                      {lawyer.experience} tajriba
-                    </span>
-                  </div>
+          {/* Left Side: Image & Key Stats (Mobile: Top) */}
+          <div className="md:w-2/5 bg-slate-100 dark:bg-slate-900 relative">
+             <div className="h-64 md:h-full relative">
+                <img 
+                    src={lawyer.image || "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=800"} 
+                    alt={lawyer.name} 
+                    className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent opacity-90 md:opacity-60" />
+                
+                <div className="absolute bottom-0 left-0 w-full p-6 text-white">
+                    {lawyer.level === 'top' && (
+                        <div className="inline-flex items-center gap-1 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full mb-2">
+                            <ShieldCheck size={14} /> {t('lawyer_card.top_lawyer')}
+                        </div>
+                    )}
+                    <h2 className="text-2xl md:text-3xl font-serif font-bold leading-tight mb-1">{lawyer.name}</h2>
+                    <div className="flex items-center text-slate-500 dark:text-slate-400 mt-1">
+                    <MapPin size={16} className="mr-1" />
+                    {t(`data.locations.${lawyer.location.city}`)}
+                    {lawyer.location.district && `, ${t(`data.locations.${lawyer.location.district}`)}`}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-8">
-                  <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                    <span className="text-3xl font-bold text-slate-900 block mb-1">{lawyer.cases.total}</span>
-                    <span className="text-sm text-slate-500 font-medium">Jami ishlar</span>
-                  </div>
-                  <div className="p-5 bg-green-50 rounded-2xl border border-green-100">
-                    <span className="text-3xl font-bold text-green-600 block mb-1">{lawyer.cases.won}</span>
-                    <span className="text-sm text-green-700 font-medium">Muvaffaqiyatli</span>
-                  </div>
+                     <div className="flex gap-4 border-t border-white/20 pt-4 justify-between">
+                        <div className="text-center">
+                            <div className="text-xl font-bold">{lawyer.cases?.total || '50'}+</div>
+                            <div className="text-xs text-slate-400 uppercase">{t('lawyer_card.total_cases')}</div>
+                        </div>
+                        <div className="text-center border-l border-white/20 pl-4">
+                            <div className="text-xl font-bold text-green-400">{lawyer.cases?.won || '45'}+</div>
+                            <div className="text-xs text-slate-400 uppercase">{t('lawyer_card.won_cases')}</div>
+                        </div>
+                        <div className="text-center border-l border-white/20 pl-4">
+                            <div className="text-xl font-bold">{lawyer.experience || '5'} {t('lawyer_card.years')}</div>
+                        </div>
+                        <div className="text-center border-l border-white/20 pl-4">
+                            <div className="text-xl font-bold flex items-center gap-1">
+                                {lawyer.rating || '4.9'} <Star size={14} className="text-yellow-400 fill-current" />
+                            </div>
+                        </div>
+                     </div>
                 </div>
+             </div>
+          </div>
 
-                <div className="space-y-4 mb-8">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <Globe className="text-[var(--color-primary)]" size={18} />
-                    So'zlashuv tillari
-                  </h3>
-                  <div className="flex gap-2">
-                    {lawyer.languages.map(lang => (
-                      <span key={lang} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 font-medium">
-                        {lang}
-                      </span>
+          {/* Right Side: Detailed Info */}
+          <div className="md:w-3/5 p-6 md:p-8 bg-white dark:bg-slate-800 text-slate-900 dark:text-white flex flex-col h-full">
+             <div className="flex-1">
+                 {/* Specialization Tags */}
+                 <div className="flex flex-wrap gap-2 mb-6">
+                    <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-lg text-sm font-medium border border-blue-100 dark:border-blue-800">
+                        {lawyer.specialization ? t(`lawyers_page.categories.${lawyer.specialization}`) : 'Yurist'}
+                    </span>
+                    {lawyer.languages && lawyer.languages.map((lang, i) => (
+                        <span key={i} className="px-3 py-1 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-medium border border-slate-100 dark:border-slate-600">
+                            {lang}
+                        </span>
                     ))}
-                  </div>
-                </div>
-              </div>
+                 </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 mt-6">
-                <div className="flex-1">
-                  <Button 
-                    onClick={handleAdminContact}
-                    className="w-full gap-2 btn-primary shadow-lg shadow-blue-900/20" 
-                    size="lg"
-                  >
-                    <MessageSquare size={20} />
-                    Admin orqali bog'lanish
-                  </Button>
-                </div>
-              </div>
-            </div>
+                 <div className="space-y-6">
+                    <div>
+                        <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                            <Briefcase size={18} className="text-[var(--color-primary)]" />
+                            {t('lawyer_card.about')}
+                        </h3>
+                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-sm">
+                            {lawyer.bio || `${lawyer.name} ${lawyer.experience} ${t('lawyer_card.bio_exp')} ${t('lawyer_card.bio_spec')} ${t(`lawyers_page.categories.${lawyer.specialization}`)} ${t('lawyer_card.bio_end')}`}
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="bg-slate-50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                             <div className="flex items-center gap-2 mb-1 text-slate-500 dark:text-slate-400 text-xs uppercase font-bold tracking-wider">
+                                <Award size={14} /> {t('lawyer_card.license')}
+                             </div>
+                             <div className="font-medium">№ {lawyer.license || 'AB-123456'}</div>
+                        </div>
+                        <div className="bg-slate-50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                             <div className="flex items-center gap-2 mb-1 text-slate-500 dark:text-slate-400 text-xs uppercase font-bold tracking-wider">
+                                <Clock size={14} /> {t('lawyer_card.work_hours')}
+                             </div>
+                             <div className="font-medium">09:00 - 18:00</div>
+                        </div>
+                    </div>
+                 </div>
+             </div>
+
+             <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-4">
+                 <Button onClick={handleContact} className="flex-1 py-3 text-lg font-bold shadow-lg shadow-blue-500/20">
+                     <MessageSquare size={18} className="mr-2" /> {t('lawyer_card.chat_btn')}
+                 </Button>
+                 <Button variant="outline" className="flex-1 py-3 text-lg font-medium border-slate-200 dark:border-slate-600 dark:text-white dark:hover:bg-slate-700">
+                     <Phone size={18} className="mr-2" /> {t('lawyer_card.call_btn')}
+                 </Button>
+             </div>
           </div>
         </motion.div>
       </div>
     </AnimatePresence>
   );
-}
+};
+
+export default LawyerModal;

@@ -13,16 +13,21 @@ import ChatPage from './pages/Chat';
 import Auth from './pages/Auth';
 
 import Dashboard from './pages/Dashboard';
+import ConstitutionPage from './pages/ConstitutionPage';
+
 
 import { LanguageProvider } from './context/LanguageContext';
+import { ThemeProvider } from './context/ThemeContext';
+import ThemeSwitcher from './components/layout/ThemeSwitcher';
 
 function App() {
   return (
     <AuthProvider>
-      <LanguageProvider>
+      <ThemeProvider>
+        <LanguageProvider>
         <Router>
           <ScrollToTop />
-          <div className="min-h-screen bg-white flex flex-col">
+          <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-300">
             <Navbar />
             <main className="flex-grow">
               <Routes>
@@ -35,12 +40,15 @@ function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/constitution" element={<ConstitutionPage />} />
               </Routes>
             </main>
             <Footer />
           </div>
+          <ThemeSwitcher />
         </Router>
       </LanguageProvider>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

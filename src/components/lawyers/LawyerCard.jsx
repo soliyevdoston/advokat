@@ -2,8 +2,11 @@ import React from 'react';
 import { Star, MapPin, Briefcase } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Button from '../ui/Button';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function LawyerCard({ lawyer, onClick }) {
+  const { t } = useLanguage();
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -27,7 +30,7 @@ export default function LawyerCard({ lawyer, onClick }) {
         
         <div className="absolute bottom-4 left-4 text-white translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
            <p className="text-sm font-medium bg-[var(--color-primary)] px-3 py-1 rounded-lg inline-block shadow-lg">
-             Batafsil ko'rish
+             {t('lawyer_card.detail_view')}
            </p>
         </div>
       </div>
@@ -36,7 +39,7 @@ export default function LawyerCard({ lawyer, onClick }) {
         <h3 className="text-xl font-serif font-bold text-slate-900 mb-2 group-hover:text-[var(--color-primary)] transition-colors">{lawyer.name}</h3>
         <p className="text-[var(--color-primary)] font-medium mb-4 flex items-center gap-2 text-sm bg-blue-50 w-fit px-3 py-1 rounded-lg">
           <Briefcase size={16} />
-          {lawyer.specialization}
+          {t(`data.specializations.${lawyer.specialization}`)}
         </p>
         
         <div className="flex items-center gap-2 text-slate-500 text-sm mb-6">
@@ -47,16 +50,16 @@ export default function LawyerCard({ lawyer, onClick }) {
         <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4 mb-4">
           <div className="text-center">
             <span className="block font-bold text-slate-900 text-lg">{lawyer.cases.total}</span>
-            <span className="text-xs text-slate-500 uppercase tracking-wide">Jami ishlar</span>
+            <span className="text-xs text-slate-500 uppercase tracking-wide">{t('lawyer_card.total_cases')}</span>
           </div>
           <div className="text-center border-l border-slate-100">
             <span className="block font-bold text-green-600 text-lg">{lawyer.cases.won}</span>
-            <span className="text-xs text-slate-500 uppercase tracking-wide">Yutib chiqilgan</span>
+            <span className="text-xs text-slate-500 uppercase tracking-wide">{t('lawyer_card.won_cases')}</span>
           </div>
         </div>
 
         <Button variant="outline" className="w-full group-hover:bg-[var(--color-primary)] group-hover:text-white group-hover:border-[var(--color-primary)] transition-colors font-medium">
-          Profile Karta
+          {t('lawyer_card.profile_btn')}
         </Button>
       </div>
     </motion.div>

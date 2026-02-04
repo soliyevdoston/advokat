@@ -28,26 +28,24 @@ export default function Services() {
       title: t('services.items.documents.title'),
       desc: t('services.items.documents.desc')
     },
-    // Adding fallbacks or reusing keys for demo if specific keys don't exist for all 6 items
-    // Using existing keys for demonstration as requested plan didn't expand to 6 items
     {
       icon: <Globe className="w-8 h-8 text-[var(--color-primary)]" />,
-      title: "Xalqaro huquq", 
-      desc: "Chet el fuqarolari va kompaniyalari uchun huquqiy maslahatlar va vakillik."
+      title: t('services.items.international.title'),
+      desc: t('services.items.international.desc')
     },
     {
       icon: <ShieldCheck className="w-8 h-8 text-[var(--color-primary)]" />,
-      title: "Mehnat huquqi",
-      desc: "Ish beruvchi va xodim o'rtasidagi nizolar, noqonuniy ishdan bo'shatish masalalari."
+      title: t('services.items.labor.title'),
+      desc: t('services.items.labor.desc')
     }
   ];
 
   return (
-    <section className="py-24 bg-white">
+    <section className="py-24 bg-white dark:bg-slate-900 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-serif font-bold text-slate-900 mb-4">{t('services.title')}</h2>
-          <p className="text-slate-600 max-w-2xl mx-auto text-lg">
+          <h2 className="text-3xl md:text-5xl font-serif font-bold text-slate-900 dark:text-white mb-4">{t('services.title')}</h2>
+          <p className="text-slate-600 dark:text-slate-300 max-w-2xl mx-auto text-lg">
             {t('services.subtitle')}
           </p>
         </div>
@@ -65,13 +63,13 @@ export default function Services() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1 }}
-                className="p-4 md:p-8 h-full rounded-2xl bg-slate-50 border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer flex flex-col items-center text-center md:block md:text-left"
+                className="p-4 md:p-8 h-full rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer flex flex-col items-center text-center md:block md:text-left"
               >
-                <div className="w-12 h-12 md:w-16 md:h-16 bg-white rounded-2xl flex items-center justify-center mb-3 md:mb-6 shadow-sm group-hover:scale-110 transition-transform duration-300">
-                  {React.cloneElement(service.icon, { className: "w-6 h-6 md:w-8 md:h-8 text-[var(--color-primary)]" })}
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-white dark:bg-slate-700 rounded-2xl flex items-center justify-center mb-3 md:mb-6 shadow-sm group-hover:scale-110 transition-transform duration-300">
+                  {React.cloneElement(service.icon, { className: "w-6 h-6 md:w-8 md:h-8 text-[var(--color-primary)] dark:text-blue-400" })}
                 </div>
-                <h3 className="text-sm md:text-xl font-bold text-slate-900 mb-2 md:mb-3 leading-tight">{service.title}</h3>
-                <p className="text-slate-600 leading-relaxed text-xs md:text-base line-clamp-3 md:line-clamp-none">
+                <h3 className="text-sm md:text-xl font-bold text-slate-900 dark:text-white mb-2 md:mb-3 leading-tight">{service.title}</h3>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-xs md:text-base line-clamp-3 md:line-clamp-none">
                   {service.desc}
                 </p>
               </motion.div>

@@ -32,7 +32,7 @@ export default function Hero() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
             </span>
-            <span className="text-sm font-medium tracking-wide">O'rta Osiyoda yagona huquqiy platforma</span>
+            <span className="text-sm font-medium tracking-wide">{t('hero.badge')}</span>
           </div>
           
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif font-bold leading-tight mb-6 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-blue-200 drop-shadow-2xl">
@@ -48,13 +48,13 @@ export default function Hero() {
               <input 
                 type="text" 
                 placeholder={t('hero.cta')}
-                className="w-full px-6 py-4 rounded-xl border-0 focus:ring-2 focus:ring-[var(--color-primary)] shadow-2xl text-slate-900 placeholder:text-slate-400"
+                className="w-full px-6 py-4 rounded-xl border-0 focus:ring-2 focus:ring-[var(--color-primary)] shadow-2xl text-slate-900 placeholder:text-slate-400 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
               />
               <Search className="absolute right-4 top-4 text-slate-400" />
             </div>
             <Link to="/chat">
-              <Button size="lg" className="bg-white text-slate-900 hover:bg-blue-50 border-none px-10 py-5 text-lg font-bold shadow-2xl shadow-white/10 group">
-                Qidirish <ArrowRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
+              <Button size="lg" className="bg-white text-slate-900 hover:bg-blue-50 border-none px-10 py-5 text-lg font-bold shadow-2xl shadow-white/10 group dark:bg-blue-600 dark:text-white dark:hover:bg-blue-700">
+                {t('hero.search_btn')} <ArrowRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
           </div>
@@ -63,7 +63,7 @@ export default function Hero() {
           <div className="mt-16 pt-8 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
               { label: t('hero.stats.reviews'), value: "98%" },
-              { label: "Tajriba", value: "10+ Yil" },
+              { label: t('hero.stats.exp'), value: "10+" },
               { label: t('hero.stats.lawyers'), value: "50+" },
               { label: t('hero.stats.cases'), value: "1500+" }
             ].map((stat, i) => (

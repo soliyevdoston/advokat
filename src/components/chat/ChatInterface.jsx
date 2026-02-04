@@ -2,17 +2,18 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Bot, User, MoreVertical, Phone, Video, Search, Image as ImageIcon, FileText, Smile } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../ui/Button';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function ChatInterface({ title, subtitle, type = 'ai', initialMessage }) {
+  const { t } = useLanguage();
   const [messages, setMessages] = useState([
     { id: 1, text: initialMessage, sender: 'bot', timestamp: new Date() }
   ]);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef(null);
 
-  
   const contacts = [
-    { id: 'ai', name: 'Advokat Yordamchisi', status: 'online', type: 'ai' },
+    { id: 'ai', name: t('chat_interface.roles.ai'), status: 'online', type: 'ai' },
     { id: 1, name: 'Azizov Bahrom', status: 'online', type: 'lawyer' },
     { id: 2, name: 'Karimova Nargiza', status: 'offline', type: 'lawyer' },
     { id: 3, name: 'Toshmatov Dilshod', status: 'online', type: 'lawyer' },
@@ -36,13 +37,18 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
 
     // Simulate bot response
     setTimeout(() => {
+      let responseText = "";
+      if (type === 'ai') {
+        responseText = t('chat_interface.ai_responses.doc');
+      } else if (type === 'expert') {
+        responseText = t('chat_interface.ai_responses.expert');
+      } else {
+        responseText = t('chat_interface.ai_responses.busy');
+      }
+
       const botMsg = { 
         id: Date.now() + 1, 
-        text: type === 'ai' 
-          ? "Hujjatni tayyorlash uchun menga qo'shimcha ma'lumotlar kerak. Iltimos, batafsilroq tushuntiring." 
-          : type === 'expert'
-            ? "Murojaatingiz qabul qilindi. Tez orada ma'muriyatimiz siz bilan bog'lanadi va advokat bilan uchrashuv belgilashga yordam beradi."
-            : "Assalomu alaykum! Murojaatingiz uchun rahmat. Hozirgi kunda bandman, lekin tez orada javob beraman.",
+        text: responseText,
         sender: 'bot', 
         timestamp: new Date() 
       };
@@ -55,11 +61,11 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
       {/* Sidebar - Hidden on mobile for simple view, visible on larger screens */}
       <div className="hidden md:flex w-80 bg-slate-50 border-r border-slate-100 flex-col">
         <div className="p-6 border-b border-slate-100">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">Xabarlar</h3>
+          <h3 className="text-xl font-bold text-slate-900 mb-4">{t('chat_interface.sidebar_title')}</h3>
           <div className="relative">
             <input 
               type="text" 
-              placeholder="Qidiruv..." 
+              placeholder={t('chat_interface.search_placeholder')} 
               className="w-full pl-9 pr-4 py-2 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50 text-sm"
             />
             <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
@@ -93,7 +99,7 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
                   {contact.name}
                 </h4>
                 <p className="text-xs text-slate-500">
-                  {contact.type === 'ai' ? 'Onlayn yordamchi' : 'Advokat'}
+                  {contact.type === 'ai' ? t('chat_interface.roles.ai') : t('chat_interface.roles.lawyer')}
                 </p>
               </div>
             </div>
@@ -180,7 +186,7 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
                   handleSend();
                 }
               }}
-              placeholder="Xabaringizni yozing..."
+              placeholder={t('chat_interface.input_placeholder')}
               className="flex-1 bg-transparent border-0 focus:ring-0 text-slate-800 placeholder:text-slate-400 resize-none py-3 max-h-32 min-h-[48px]"
               rows="1"
             />
@@ -204,7 +210,7 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
           </div>
           <div className="text-center mt-2">
             <p className="text-xs text-slate-400">
-              Sun'iy intellekt xatoga yo'l qo'yishi mumkin. Muhim ma'lumotlarni tekshiring.
+              {t('chat_interface.ai_warning')}
             </p>
           </div>
         </div>

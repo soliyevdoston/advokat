@@ -1,6 +1,12 @@
 @import "tailwindcss";
-
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap');
+
+/* Critical for manual dark mode toggling in Tailwind v4 */
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light dark;
+}
 
 @theme {
   --font-sans: 'Outfit', system-ui, sans-serif;
@@ -9,7 +15,7 @@
   --color-primary: #1a365d;
   --color-primary-light: #2c5282;
   --color-primary-dark: #102a43;
-  --color-secondary: #c5a572; /* Gold/Bronze accent for legal feel */
+  --color-secondary: #c5a572; 
   --color-secondary-light: #d6bc8a;
   --color-accent: #3182ce;
   
@@ -25,11 +31,21 @@
 
 @layer base {
   body {
-    @apply antialiased bg-slate-50 text-slate-800 font-sans;
+    @apply antialiased bg-slate-50 text-slate-800 font-sans transition-colors duration-300;
+  }
+  
+  :root.dark body {
+    @apply bg-slate-900 text-slate-100;
+    background-color: #0f172a; /* Explicit Fallback */
+    color: #f1f5f9; /* Explicit Fallback */
   }
   
   h1, h2, h3, h4, h5, h6 {
     @apply font-serif text-slate-900;
+  }
+
+  :root.dark h1, :root.dark h2, :root.dark h3, :root.dark h4, :root.dark h5, :root.dark h6 {
+    @apply text-white;
   }
 }
 
@@ -44,10 +60,12 @@
 
   .btn-outline {
     @apply border-2 border-[var(--color-primary)] text-[var(--color-primary)] px-6 py-2 rounded-lg hover:bg-[var(--color-primary)] hover:text-white transition-colors duration-200 font-medium;
+    @apply dark:border-white dark:text-white dark:hover:bg-white dark:hover:text-[var(--color-primary)];
   }
 
   .glass-panel {
     @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+    @apply dark:bg-slate-900/70 dark:border-white/10;
   }
 
   .card-hover {
