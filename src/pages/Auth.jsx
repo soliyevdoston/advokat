@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Scale, Mail, Lock, User, Chrome } from 'lucide-react';
+import { Scale, Mail, Lock, User, Chrome, Phone } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -18,10 +18,10 @@ export default function Auth() {
     e.preventDefault();
     // Simulate login data
     const formData = new FormData(e.target);
-    const email = formData.get('email');
-    const name = formData.get('name') || email.split('@')[0];
+    const phone = formData.get('phone');
+    const name = formData.get('name') || phone;
     
-    login({ email, name });
+    login({ phone, name });
     
     // Navigate back to where they came from or dashboard
     const from = location.state?.from?.pathname || '/dashboard';
@@ -91,13 +91,13 @@ export default function Auth() {
             )}
             
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">{t('auth.email')}</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">{t('auth.phone') || 'Telefon raqam'}</label>
               <div className="relative group">
-                <Mail className="absolute left-4 top-3.5 text-slate-400 dark:text-slate-500 group-focus-within:text-[var(--color-primary)] dark:group-focus-within:text-blue-400 transition-colors" size={20} />
+                <Phone className="absolute left-4 top-3.5 text-slate-400 dark:text-slate-500 group-focus-within:text-[var(--color-primary)] dark:group-focus-within:text-blue-400 transition-colors" size={20} />
                 <input 
-                  name="email" 
-                  type="email" 
-                  placeholder="example@gmail.com" 
+                  name="phone" 
+                  type="tel" 
+                  placeholder="+998 90 123 45 67" 
                   className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[var(--color-primary)] dark:focus:border-blue-400 bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-medium" 
                 />
               </div>

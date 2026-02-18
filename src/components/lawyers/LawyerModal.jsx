@@ -106,28 +106,28 @@ const LawyerModal = ({ lawyer, isOpen, onClose }) => {
                  </div>
 
                  <div className="space-y-6">
-                    <div>
+                     <div>
                         <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
                             <Briefcase size={18} className="text-[var(--color-primary)]" />
                             {t('lawyer_card.about')}
                         </h3>
                         <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-sm">
-                            {lawyer.bio || `${lawyer.name} ${lawyer.experience} ${t('lawyer_card.bio_exp')} ${t('lawyer_card.bio_spec')} ${t(`lawyers_page.categories.${lawyer.specialization}`)} ${t('lawyer_card.bio_end')}`}
+                            {lawyer.bio}
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="bg-slate-50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
                              <div className="flex items-center gap-2 mb-1 text-slate-500 dark:text-slate-400 text-xs uppercase font-bold tracking-wider">
-                                <Award size={14} /> {t('lawyer_card.license')}
+                                <Award size={14} /> {t('lawyer_card.license') || 'Litsenziya'}
                              </div>
-                             <div className="font-medium">№ {lawyer.license || 'AB-123456'}</div>
+                             <div className="font-medium">{lawyer.license}</div>
                         </div>
                         <div className="bg-slate-50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
                              <div className="flex items-center gap-2 mb-1 text-slate-500 dark:text-slate-400 text-xs uppercase font-bold tracking-wider">
                                 <Clock size={14} /> {t('lawyer_card.work_hours')}
                              </div>
-                             <div className="font-medium">09:00 - 18:00</div>
+                             <div className="font-medium">{lawyer.workHours}</div>
                         </div>
                     </div>
                  </div>
