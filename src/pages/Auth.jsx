@@ -9,23 +9,61 @@ import { useLanguage } from '../context/LanguageContext';
 export default function Auth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, verifyCode } = useAuth();
   const [isLogin, setIsLogin] = useState(location.state?.isLogin ?? true);
+  const [step, setStep] = useState('login');
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const { t } = useLanguage();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Simulate login data
+    if (loading) return;
+
+    setError(null);
+    setLoading(true);
+
     const formData = new FormData(e.target);
-    const phone = formData.get('phone');
-    const name = formData.get('name') || phone;
+    const emailVal = formData.get('email');
+    const passwordVal = formData.get('password');
+    const nameVal = formData.get('name');
     
-    login({ phone, name });
-    
-    // Navigate back to where they came from or dashboard
-    const from = location.state?.from?.pathname || '/dashboard';
-    navigate(from);
+    try {
+      if (isLogin) {
+        await login(emailVal, passwordVal);
+        setEmail(emailVal);
+        setStep('verify');
+      } else {
+        // Handle registration flow if needed
+        setEmail(emailVal);
+        setStep('verify');
+      }
+    } catch (err) {
+      setError(err.message || t('auth.error_general'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    if (loading) return;
+
+    setError(null);
+    setLoading(true);
+
+    try {
+      await verifyCode(email, code);
+      const from = location.state?.from?.pathname || '/dashboard';
+      navigate(from);
+    } catch (err) {
+      setError(err.message || t('auth.error_code'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -74,60 +112,129 @@ export default function Auth() {
             </button>
           </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            {!isLogin && (
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl text-red-600 dark:text-red-400 text-sm font-medium flex items-center gap-2">
+              <Scale size={18} className="rotate-12" />
+              {error}
+            </div>
+          )}
+
+          {step === 'login' ? (
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              {!isLogin && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">{t('auth.name')}</label>
+                  <div className="relative group">
+                    <User className="absolute left-4 top-3.5 text-slate-400 dark:text-slate-500 group-focus-within:text-[var(--color-primary)] dark:group-focus-within:text-blue-400 transition-colors" size={20} />
+                    <input 
+                      name="name" 
+                      type="text" 
+                      required
+                      placeholder={t('auth.name_placeholder')}
+                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[var(--color-primary)] dark:focus:border-blue-400 bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-medium" 
+                    />
+                  </div>
+                </div>
+              )}
+              
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">{t('auth.name')}</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">{t('auth.email')}</label>
                 <div className="relative group">
-                  <User className="absolute left-4 top-3.5 text-slate-400 dark:text-slate-500 group-focus-within:text-[var(--color-primary)] dark:group-focus-within:text-blue-400 transition-colors" size={20} />
+                  <Mail className="absolute left-4 top-3.5 text-slate-400 dark:text-slate-500 group-focus-within:text-[var(--color-primary)] dark:group-focus-within:text-blue-400 transition-colors" size={20} />
                   <input 
-                    name="name" 
-                    type="text" 
-                    placeholder={t('auth.name_placeholder')}
+                    name="email" 
+                    type="email" 
+                    required
+                    placeholder={t('auth.email_placeholder') || 'example@mail.com'} 
                     className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[var(--color-primary)] dark:focus:border-blue-400 bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-medium" 
                   />
                 </div>
               </div>
-            )}
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">{t('auth.phone') || 'Telefon raqam'}</label>
-              <div className="relative group">
-                <Phone className="absolute left-4 top-3.5 text-slate-400 dark:text-slate-500 group-focus-within:text-[var(--color-primary)] dark:group-focus-within:text-blue-400 transition-colors" size={20} />
-                <input 
-                  name="phone" 
-                  type="tel" 
-                  placeholder="+998 90 123 45 67" 
-                  className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[var(--color-primary)] dark:focus:border-blue-400 bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-medium" 
-                />
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">{t('auth.password')}</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-3.5 text-slate-400 dark:text-slate-500 group-focus-within:text-[var(--color-primary)] dark:group-focus-within:text-blue-400 transition-colors" size={20} />
-                <input 
-                  name="password" 
-                  type="password" 
-                  placeholder="••••••••" 
-                  className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[var(--color-primary)] dark:focus:border-blue-400 bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-medium" 
-                />
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">{t('auth.password')}</label>
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-3.5 text-slate-400 dark:text-slate-500 group-focus-within:text-[var(--color-primary)] dark:group-focus-within:text-blue-400 transition-colors" size={20} />
+                  <input 
+                    name="password" 
+                    type="password" 
+                    required
+                    placeholder="••••••••" 
+                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[var(--color-primary)] dark:focus:border-blue-400 bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-medium" 
+                  />
+                </div>
               </div>
-            </div>
 
-            {isLogin && (
-              <div className="flex justify-end">
-                <a href="#" className="text-sm font-medium text-[var(--color-primary)] dark:text-blue-400 hover:underline hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
-                  {t('auth.forgot')}
-                </a>
+              {isLogin && (
+                <div className="flex justify-end">
+                  <a href="#" className="text-sm font-medium text-[var(--color-primary)] dark:text-blue-400 hover:underline hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
+                    {t('auth.forgot')}
+                  </a>
+                </div>
+              )}
+
+              <Button 
+                type="submit" 
+                disabled={loading}
+                className="w-full py-4 text-lg font-bold btn-primary shadow-xl shadow-blue-900/20 active:scale-[0.98] transition-all flex items-center justify-center"
+              >
+                {loading ? (
+                  <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  isLogin ? t('auth.login_btn') : t('auth.register_btn')
+                )}
+              </Button>
+            </form>
+          ) : (
+            <motion.form 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6" 
+              onSubmit={handleVerify}
+            >
+              <div className="text-center mb-6">
+                <p className="text-slate-600 dark:text-slate-400">
+                  {email} {t('auth.verify_desc')}
+                </p>
               </div>
-            )}
 
-            <Button className="w-full py-4 text-lg font-bold btn-primary shadow-xl shadow-blue-900/20 active:scale-[0.98] transition-all">
-              {isLogin ? t('auth.login_btn') : t('auth.register_btn')}
-            </Button>
-          </form>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">{t('auth.verify_title')}</label>
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-3.5 text-slate-400 dark:text-slate-500 group-focus-within:text-[var(--color-primary)] dark:group-focus-within:text-blue-400 transition-colors" size={20} />
+                  <input 
+                    type="text" 
+                    maxLength={6}
+                    required
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="000000" 
+                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[var(--color-primary)] dark:focus:border-blue-400 bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-medium tracking-[0.5em] text-center text-xl" 
+                  />
+                </div>
+              </div>
+
+              <Button 
+                type="submit" 
+                disabled={loading || code.length !== 6}
+                className="w-full py-4 text-lg font-bold btn-primary shadow-xl shadow-blue-900/20 active:scale-[0.98] transition-all flex items-center justify-center"
+              >
+                {loading ? (
+                  <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  t('auth.verify_btn')
+                )}
+              </Button>
+
+              <button 
+                type="button"
+                onClick={() => setStep('login')}
+                className="w-full py-2 text-sm font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+              >
+                {t('auth.change_email') || 'Emailni o\'zgartirish'}
+              </button>
+            </motion.form>
+          )}
 
           <div className="relative my-8">
             <div className="absolute inset-0 flex items-center">

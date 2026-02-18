@@ -449,7 +449,15 @@ export const translations = {
       password: "Parol",
       forgot: "Parolni unutdingizmi?",
       or: "Yoki bu orqali kiring",
-      google: "Google orqali davom etish"
+      google: "Google orqali davom etish",
+      phone: "Telefon raqam",
+      verify_title: "Tasdiqlash kodi",
+      verify_desc: "manziliga yuborilgan 6 xonali kodni kiriting",
+      verify_btn: "Tasdiqlash",
+      change_phone: "Raqamni o'zgartirish",
+      change_email: "Emailni o'zgartirish",
+      error_code: "Kod noto'g'ri",
+      error_general: "Xatolik yuz berdi"
     }
   },
   oz: {
@@ -893,7 +901,15 @@ export const translations = {
       password: "Парол",
       forgot: "Паролни унутдингизми?",
       or: "Ёки бу орқали киринг",
-      google: "Google орқали давом этиш"
+      google: "Google орқали давом этиш",
+      phone: "Телефон рақам",
+      verify_title: "Тасдиқлаш коди",
+      verify_desc: "манзилига юборилган 6 хонали кодни киритинг",
+      verify_btn: "Тасдиқлаш",
+      change_phone: "Рақамни ўзгартириш",
+      change_email: "Emailни ўзгартириш",
+      error_code: "Код нотўғри",
+      error_general: "Хатолик юз берди"
     }
   },
   ru: {
@@ -1797,7 +1813,15 @@ export const translations = {
       password: "Password",
       forgot: "Forgot Password?",
       or: "Or continue with",
-      google: "Continue with Google"
+      google: "Continue with Google",
+      phone: "Phone Number",
+      verify_title: "Verification Code",
+      verify_desc: "Enter the 6-digit code sent to",
+      verify_btn: "Verify",
+      change_phone: "Change Number",
+      change_email: "Change Email",
+      error_code: "Invalid Code",
+      error_general: "An error occurred"
     }
   }
 };

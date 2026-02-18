@@ -15,11 +15,47 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const login = (userData) => {
-    // Simulate API call
-    const user = { ...userData, id: Date.now() };
-    setUser(user);
-    localStorage.setItem('advokat_user', JSON.stringify(user));
+  const login = async (email, password) => {
+    try {
+      const res = await fetch("https://advokat-becent.onrender.com/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Login failed");
+      }
+
+      return await res.json();
+    } catch (err) {
+      console.error("Login error:", err.message);
+      throw err;
+    }
+  };
+
+  const verifyCode = async (email, code) => {
+    try {
+      const res = await fetch("https://advokat-becent.onrender.com/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Verification failed");
+      }
+
+      const data = await res.json();
+      setUser(data);
+      localStorage.setItem('advokat_user', JSON.stringify(data));
+      return data;
+    } catch (err) {
+      console.error("Verification error:", err.message);
+      throw err;
+    }
   };
 
   const logout = () => {
@@ -28,7 +64,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, verifyCode, logout }}>
       {children}
     </AuthContext.Provider>
   );
