@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }) => {
       const res = await fetch("https://advokat-becent.onrender.com/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code, token: authToken }),
+        body: JSON.stringify({ authToken, code }),
       });
 
       if (!res.ok) {
