@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }) => {
   // 1-qadam: Email yuborish → backend OTP kodni emailga jo'natadi + 10 xonali token qaytaradi
   const sendCode = async (email, password) => {
     try {
-      const res = await fetch("https://advokat-becent.onrender.com/auth/send-code", {
+      const res = await fetch("https://advokat-1.onrender.com/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
   // 2-qadam: OTP kodni tekshirish → muvaffaqiyatli bo'lsa foydalanuvchi tizimga kiradi
   const verifyCode = async (email, code) => {
     try {
-      const res = await fetch("https://advokat-becent.onrender.com/auth/verify-code", {
+      const res = await fetch("https://advokat-1.onrender.com/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ authToken, code }),
