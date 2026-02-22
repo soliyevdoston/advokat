@@ -15,31 +15,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Mavjud foydalanuvchi uchun TO'G'RIDAN-TO'G'RI login (OTP yo'q)
-  const loginDirect = async (email, password) => {
-    try {
-      const res = await fetch("https://advokat-becent.onrender.com/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || "Login muvaffaqiyatsiz");
-      }
-
-      const data = await res.json();
-      setUser(data.user || data);
-      localStorage.setItem('advokat_user', JSON.stringify(data.user || data));
-      return data;
-    } catch (err) {
-      console.error("Login error:", err.message);
-      throw err;
-    }
-  };
-
-  // Yangi foydalanuvchi uchun REGISTER — email kod (OTP) yuboradi
+  // 1-qadam: Email yuborish → backend OTP kodni emailga jo'natadi + 10 xonali token qaytaradi
   const sendCode = async (email, password) => {
     try {
       const res = await fetch("https://advokat-becent.onrender.com/auth/send-code", {
@@ -63,7 +39,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // OTP kodni tekshirish (faqat register uchun)
+  // 2-qadam: OTP kodni tekshirish → muvaffaqiyatli bo'lsa foydalanuvchi tizimga kiradi
   const verifyCode = async (email, code) => {
     try {
       const res = await fetch("https://advokat-becent.onrender.com/auth/verify-code", {
@@ -94,7 +70,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loginDirect, sendCode, verifyCode, logout, authToken }}>
+    <AuthContext.Provider value={{ user, sendCode, verifyCode, logout, authToken }}>
       {children}
     </AuthContext.Provider>
   );

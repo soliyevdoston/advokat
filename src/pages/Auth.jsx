@@ -9,7 +9,7 @@ import { useLanguage } from '../context/LanguageContext';
 export default function Auth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { loginDirect, sendCode, verifyCode } = useAuth();
+  const { sendCode, verifyCode } = useAuth();
   const [isLogin, setIsLogin] = useState(location.state?.isLogin ?? true);
   const [step, setStep] = useState('form'); // 'form' | 'verify'
   const [email, setEmail] = useState('');
@@ -31,17 +31,10 @@ export default function Auth() {
     const passwordVal = formData.get('password');
 
     try {
-      if (isLogin) {
-        // Mavjud account → to'g'ridan-to'g'ri login (OTP yo'q)
-        await loginDirect(emailVal, passwordVal);
-        const from = location.state?.from?.pathname || '/dashboard';
-        navigate(from);
-      } else {
-        // Yangi account → OTP kodni yuboradi
-        await sendCode(emailVal, passwordVal);
-        setEmail(emailVal);
-        setStep('verify');
-      }
+      // Ikkalasi ham (login ham, register ham) → send-code → verify-code
+      await sendCode(emailVal, passwordVal);
+      setEmail(emailVal);
+      setStep('verify');
     } catch (err) {
       setError(err.message || t('auth.error_general'));
     } finally {
