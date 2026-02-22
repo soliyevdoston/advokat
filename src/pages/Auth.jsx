@@ -50,10 +50,13 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      await verifyCode(email, code);
+      const result = await verifyCode(email, code);
+      console.log("✅ verifyCode result:", result);
       const from = location.state?.from?.pathname || '/dashboard';
-      navigate(from);
+      console.log("🔀 navigating to:", from);
+      navigate(from, { replace: true });
     } catch (err) {
+      console.error("❌ verifyCode error:", err);
       setError(err.message || t('auth.error_code'));
     } finally {
       setLoading(false);
