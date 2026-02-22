@@ -7,7 +7,7 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [authToken, setAuthToken] = useState(null);
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('advokat_auth_token') || null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('advokat_user');
@@ -32,7 +32,10 @@ export const AuthProvider = ({ children }) => {
 
       const data = await res.json();
       // Backend 10 xonali tokenni qaytaradi — saqlab qo'yamiz
-      if (data.token) setAuthToken(data.token);
+      if (data.token) {
+        setAuthToken(data.token);
+        localStorage.setItem('advokat_auth_token', data.token);
+      }
       return data;
     } catch (err) {
       console.error("Send code error:", err.message);
@@ -68,6 +71,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setAuthToken(null);
     localStorage.removeItem('advokat_user');
+    localStorage.removeItem('advokat_auth_token');
   };
 
   return (
