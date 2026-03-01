@@ -53,66 +53,38 @@ export const translations = {
       }
     },
     pricing: {
-      title: "Tariflar Rejasi",
-      subtitle: "Sizga mos keluvchi tarifni tanlang va huquqiy xizmatlardan foydalaning",
-      user_tab: "Foydalanuvchilar",
-      lawyer_tab: "Advokatlar",
-      period: "/oy",
-      user: {
-        free: {
-          name: "Bepul",
-          desc: "Yuridik yordamga muhtoj fuqarolar uchun",
-          cta: "Boshlash",
-          features: {
-            search: "Advokatlarni izlash",
-            basic_ai: "Basic AI yordamchi",
-            news: "Yangiliklar lentasi",
-            templates: "Hujjat shablonlari (3 ta/oy)",
-            chat: "Chat orqali konsultatsiya",
-            emergency: "Shoshilinch yordam"
-          }
-        },
-        premium: {
-          name: "Premium",
-          desc: "Doimiy huquqiy himoya va qo'shimcha imkoniyatlar",
-          cta: "Obuna bo'lish",
-          features: {
-            search: "Advokatlarni izlash",
-            advanced_ai: "Advanced AI yordamchi (Cheklovsiz)",
-            news: "Yangiliklar lentasi",
-            unlimited_templates: "Cheklovsiz hujjat shablonlari",
-            chat_247: "24/7 Chat konsultatsiya",
-            emergency: "Shoshilinch yordam tugmasi"
-          }
-        }
+      title: 'Xizmatlarimiz narxi',
+      subtitle: 'Sizga kerakli xizmat uchun hamyonbop va shaffof narxlar',
+      currency_uzs: 'UZS',
+      currency_usd: 'USD',
+      hire_lawyer: {
+        title: 'Advokat yollash',
+        price_desc: 'Xizmat narxidan komissiya',
+        fee: '12%',
+        desc: 'O'z ishingiz uchun eng yaxshi advokatni yollang. Platforma orqali amalga oshirilgan barcha to'lovlar xavfsizligi kafolatlanadi.',
+        features: [
+          { name: '100% himoyalangan to'lov', included: true },
+          { name: 'Kafolatlangan xizmat sifati', included: true },
+          { name: 'Shaffoflik va adolat', included: true },
+          { name: 'Ishonchli reyting tizimi', included: true },
+          { name: 'Shaxsiy advokat tanlash', included: true }
+        ],
+        cta: 'Advokat izlash'
       },
-      lawyer: {
-        start: {
-          name: "Start",
-          desc: "Yangi boshlayotgan advokatlar uchun",
-          cta: "Ro'yxatdan o'tish",
-          features: {
-            profile: "Shaxsiy profil",
-            db_access: "Mijozlar bazasiga kirish",
-            leads: "Oyiga 10 ta mijoz so'rovi",
-            rating: "Reyting tizimi",
-            crm: "CRM tizimi",
-            ads: "Reklama imkoniyatlari"
-          }
-        },
-        pro: {
-          name: "Pro",
-          desc: "Tajribali advokatlar va firmalar uchun",
-          cta: "Hamkorlik qilish",
-          features: {
-            top_profile: "Shaxsiy profil (Top ro'yxatda)",
-            unlimited_db: "Cheklovsiz mijozlar bazasi",
-            unlimited_leads: "Cheklovsiz mijoz so'rovi",
-            rating: "Reyting tizimi",
-            full_crm: "To'liq CRM tizimi",
-            ads: "Reklama va targ'ibot"
-          }
-        }
+      document: {
+        title: 'Hujjat tayyorlash',
+        price_uzs: '50,000',
+        price_usd: '4',
+        period: '/hujjat',
+        desc: 'Barcha turdagi huquqiy hujjatlar, shartnomalar, va da'vo arizalarini professional yuristlar tomonidan tez va sifatli tayyorlash.',
+        features: [
+          { name: 'Tezkor hujjat tayyorlash', included: true },
+          { name: 'Qonunchilikka 100% moslik', included: true },
+          { name: 'Elektron shaklda yetkazib berish', included: true },
+          { name: 'Xatolar uchun qayta bepul tahrirlash', included: true },
+          { name: 'Konsultatsiya bepul', included: true }
+        ],
+        cta: 'Hujjat buyurtma qilish'
       }
     },
     news: {
@@ -518,66 +490,38 @@ export const translations = {
       }
     },
     pricing: {
-      title: "Тарифлар Режаси",
-      subtitle: "Сизга мос келувчи тарифни танланг ва ҳуқуқий хизматлардан фойдаланинг",
-      user_tab: "Фойдаланувчилар",
-      lawyer_tab: "Адвокатлар",
-      period: "/ой",
-      user: {
-        free: {
-          name: "Бепул",
-          desc: "Юридик ёрдамга муҳтож фуқаролар учун",
-          cta: "Бошлаш",
-          features: {
-            search: "Адвокатларни излаш",
-            basic_ai: "Basic AI ёрдамчи",
-            news: "Янгиликлар лентаси",
-            templates: "Ҳужжат шаблонлари (3 та/ой)",
-            chat: "Чат орқали консультация",
-            emergency: "Шошилинч ёрдам"
-          }
-        },
-        premium: {
-          name: "Premium",
-          desc: "Доимий ҳуқуқий ҳимоя ва қўшимча имкониятлар",
-          cta: "Обуна бўлиш",
-          features: {
-            search: "Адвокатларни излаш",
-            advanced_ai: "Advanced AI ёрдамчи (Чекловсиз)",
-            news: "Янгиликлар лентаси",
-            unlimited_templates: "Чекловсиз ҳужжат шаблонлари",
-            chat_247: "24/7 Чат консультация",
-            emergency: "Шошилинч ёрдам тугмаси"
-          }
-        }
+      title: 'Хизматларимиз нархи',
+      subtitle: 'Сизга керакли хизмат учун ҳамёнбоп ва шаффоф нархлар',
+      currency_uzs: 'UZS',
+      currency_usd: 'USD',
+      hire_lawyer: {
+        title: 'Адвокат ёллаш',
+        price_desc: 'Хизмат нархидан комиссия',
+        fee: '12%',
+        desc: 'Ўз ишингиз учун энг яхши адвокатни ёлланг. Платформа орқали амалга оширилган барча тўловлар хавфсизлиги кафолатланади.',
+        features: [
+          { name: '100% ҳимояланган тўлов', included: true },
+          { name: 'Кафолатланган хизмат сифати', included: true },
+          { name: 'Шаффофлик ва адолат', included: true },
+          { name: 'Ишончли рейтинг тизими', included: true },
+          { name: 'Шахсий адвокат танлаш', included: true }
+        ],
+        cta: 'Адвокат излаш'
       },
-      lawyer: {
-        start: {
-          name: "Start",
-          desc: "Янги бошлаётган адвокатлар учун",
-          cta: "Рўйхатдан ўтиш",
-          features: {
-            profile: "Шахсий профил",
-            db_access: "Мижозлар базасига кириш",
-            leads: "Ойига 10 та мижоз сўрови",
-            rating: "Рейтинг тизими",
-            crm: "CRM тизими",
-            ads: "Реклама имкониятлари"
-          }
-        },
-        pro: {
-          name: "Pro",
-          desc: "Тажрибали адвокатлар ва фирмалар учун",
-          cta: "Ҳамкорлик қилиш",
-          features: {
-            top_profile: "Шахсий профил (Top рўйхатда)",
-            unlimited_db: "Чекловсиз мижозлар базаси",
-            unlimited_leads: "Чекловсиз мижоз сўрови",
-            rating: "Рейтинг тизими",
-            full_crm: "Тўлиқ CRM тизими",
-            ads: "Реклама ва тарғибот"
-          }
-        }
+      document: {
+        title: 'Ҳужжат тайёрлаш',
+        price_uzs: '50,000',
+        price_usd: '4',
+        period: '/ҳужжат',
+        desc: 'Барча турдаги ҳуқуқий ҳужжатлар, шартномалар ва даъво аризаларини профессионал юристлар томонидан тез ва сифатли тайёрлаш.',
+        features: [
+          { name: 'Тезкор ҳужжат тайёрлаш', included: true },
+          { name: 'Қонунчиликка 100% мослик', included: true },
+          { name: 'Электрон шаклда етказиб бериш', included: true },
+          { name: 'Хатолар учун қайта бепул таҳрирлаш', included: true },
+          { name: 'Консультация бепул', included: true }
+        ],
+        cta: 'Ҳужжат буюртма қилиш'
       }
     },
     news: {
@@ -980,66 +924,38 @@ export const translations = {
       }
     },
     pricing: {
-      title: "Тарифные Планы",
-      subtitle: "Выберите подходящий тариф и начните пользоваться юридическими услугами",
-      user_tab: "Пользователи",
-      lawyer_tab: "Адвокаты",
-      period: "/мес",
-      user: {
-        free: {
-          name: "Бесплатный",
-          desc: "Для граждан, нуждающихся в юридической помощи",
-          cta: "Начать",
-          features: {
-            search: "Поиск адвокатов",
-            basic_ai: "Базовый ИИ помощник",
-            news: "Лента новостей",
-            templates: "Шаблоны документов (3/мес)",
-            chat: "Чат-консультация",
-            emergency: "Экстренная помощь"
-          }
-        },
-        premium: {
-          name: "Premium",
-          desc: "Постоянная правовая защита и дополнительные возможности",
-          cta: "Подписаться",
-          features: {
-            search: "Поиск адвокатов",
-            advanced_ai: "Продвинутый ИИ помощник (Безлимитно)",
-            news: "Лента новостей",
-            unlimited_templates: "Безлимитные шаблоны",
-            chat_247: "24/7 Чат-консультация",
-            emergency: "Кнопка экстренной помощи"
-          }
-        }
+      title: 'Стоимость наших услуг',
+      subtitle: 'Доступные и прозрачные цены для ваших потребностей',
+      currency_uzs: 'UZS',
+      currency_usd: 'USD',
+      hire_lawyer: {
+        title: 'Нанять адвоката',
+        price_desc: 'Комиссия от стоимости услуг',
+        fee: '12%',
+        desc: 'Наймите лучшего адвоката для вашего дела. Мы гарантируем безопасность всех платежей через платформу.',
+        features: [
+          { name: '100% безопасные платежи', included: true },
+          { name: 'Гарантированное качество', included: true },
+          { name: 'Прозрачность и честность', included: true },
+          { name: 'Надежная система рейтинга', included: true },
+          { name: 'Личный выбор адвоката', included: true }
+        ],
+        cta: 'Найти адвоката'
       },
-      lawyer: {
-        start: {
-          name: "Start",
-          desc: "Для начинающих адвокатов",
-          cta: "Регистрация",
-          features: {
-            profile: "Личный профиль",
-            db_access: "Доступ к базе клиентов",
-            leads: "10 запросов в месяц",
-            rating: "Система рейтинга",
-            crm: "CRM система",
-            ads: "Рекламные возможности"
-          }
-        },
-        pro: {
-          name: "Pro",
-          desc: "Для опытных адвокатов и фирм",
-          cta: "Сотрудничать",
-          features: {
-            top_profile: "Личный профиль (В Топ списке)",
-            unlimited_db: "Безлимитная база клиентов",
-            unlimited_leads: "Безлимитные запросы клиентов",
-            rating: "Система рейтинга",
-            full_crm: "Полная CRM система",
-            ads: "Реклама и продвижение"
-          }
-        }
+      document: {
+        title: 'Подготовка документов',
+        price_uzs: '50,000',
+        price_usd: '4',
+        period: '/док',
+        desc: 'Быстрая и качественная подготовка всех видов юридических документов профессиональными юристами.',
+        features: [
+          { name: 'Быстрая подготовка документов', included: true },
+          { name: '100% соответствие закону', included: true },
+          { name: 'Доставка в электронном виде', included: true },
+          { name: 'Бесплатное редактирование ошибок', included: true },
+          { name: 'Консультация бесплатно', included: true }
+        ],
+        cta: 'Заказать документ'
       }
     },
     news: {
@@ -1433,66 +1349,38 @@ export const translations = {
       }
     },
     pricing: {
-      title: "Pricing Plans",
-      subtitle: "Choose the plan that suits you and access legal services",
-      user_tab: "Users",
-      lawyer_tab: "Lawyers",
-      period: "/month",
-      user: {
-        free: {
-          name: "Free",
-          desc: "For citizens in need of legal aid",
-          cta: "Start",
-          features: {
-            search: "Search for lawyers",
-            basic_ai: "Basic AI Assistant",
-            news: "News Feed",
-            templates: "Document Templates (3/mo)",
-            chat: "Chat Consultation",
-            emergency: "Emergency Help"
-          }
-        },
-        premium: {
-          name: "Premium",
-          desc: "Continuous legal protection and extra features",
-          cta: "Subscribe",
-          features: {
-            search: "Search for lawyers",
-            advanced_ai: "Advanced AI Assistant (Unlimited)",
-            news: "News Feed",
-            unlimited_templates: "Unlimited Document Templates",
-            chat_247: "24/7 Chat Consultation",
-            emergency: "Emergency Help Button"
-          }
-        }
+      title: 'Our Service Pricing',
+      subtitle: 'Affordable and transparent pricing for your needs',
+      currency_uzs: 'UZS',
+      currency_usd: 'USD',
+      hire_lawyer: {
+        title: 'Hire a Lawyer',
+        price_desc: 'Commission from service fee',
+        fee: '12%',
+        desc: 'Hire the best lawyer for your case. We guarantee the safety of all payments made through the platform.',
+        features: [
+          { name: '100% secure payments', included: true },
+          { name: 'Guaranteed quality of service', included: true },
+          { name: 'Transparency and fairness', included: true },
+          { name: 'Reliable rating system', included: true },
+          { name: 'Personal lawyer selection', included: true }
+        ],
+        cta: 'Find a Lawyer'
       },
-      lawyer: {
-        start: {
-          name: "Start",
-          desc: "For beginner lawyers",
-          cta: "Register",
-          features: {
-            profile: "Personal Profile",
-            db_access: "Access to Client Database",
-            leads: "10 Client Leads/mo",
-            rating: "Rating System",
-            crm: "CRM System",
-            ads: "Advertising Options"
-          }
-        },
-        pro: {
-          name: "Pro",
-          desc: "For experienced lawyers and firms",
-          cta: "Partner",
-          features: {
-            top_profile: "Personal Profile (Top List)",
-            unlimited_db: "Unlimited Client Database",
-            unlimited_leads: "Unlimited Client Leads",
-            rating: "Rating System",
-            full_crm: "Full CRM System",
-            ads: "Advertising & Promotion"
-          }
-        }
+      document: {
+        title: 'Document Preparation',
+        price_uzs: '50,000',
+        price_usd: '4',
+        period: '/doc',
+        desc: 'Fast and high-quality preparation of all types of legal documents, contracts, and claims by professional lawyers.',
+        features: [
+          { name: 'Fast document preparation', included: true },
+          { name: '100% legal compliance', included: true },
+          { name: 'Electronic delivery', included: true },
+          { name: 'Free editing for errors', included: true },
+          { name: 'Free consultation', included: true }
+        ],
+        cta: 'Order Document'
       }
     },
     news: {

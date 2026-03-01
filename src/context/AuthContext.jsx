@@ -148,6 +148,48 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ─── 6. CREATE ADMIN ──────────────────────────────────────────────────────
+  const createAdmin = async (email, password) => {
+    const res = await fetch(`${API}/users/create_admin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Agar backend avtorizatsiya so'rasa:
+        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.message || data.error || `Admin yaratishda xato: ${res.status}`);
+    }
+
+    return data;
+  };
+
+  // ─── 7. GET ALL USERS (Faqat adminlar ko'ra oladi) ────────────────────────
+  const getAllUsers = async () => {
+    if (!authToken) throw new Error('Token topilmadi. Avval admin sifatida kiring.');
+
+    const res = await fetch(`${API}/users/`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.message || data.error || `Foydalanuvchilarni olishda xato: ${res.status}`);
+    }
+
+    return data;
+  };
+
   const isAuthenticated = Boolean(authToken && user);
 
   return (
@@ -161,6 +203,8 @@ export const AuthProvider = ({ children }) => {
         verifyCode,
         logout,
         setManualToken,
+        createAdmin,
+        getAllUsers,
       }}
     >
       {children}
