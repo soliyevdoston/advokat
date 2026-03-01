@@ -61,9 +61,9 @@ export const translations = {
         title: 'Advokat yollash',
         price_desc: 'Xizmat narxidan komissiya',
         fee: '12%',
-        desc: 'O'z ishingiz uchun eng yaxshi advokatni yollang. Platforma orqali amalga oshirilgan barcha to'lovlar xavfsizligi kafolatlanadi.',
+        desc: 'O\'z ishingiz uchun eng yaxshi advokatni yollang. Platforma orqali amalga oshirilgan barcha to\'lovlar xavfsizligi kafolatlanadi.',
         features: [
-          { name: '100% himoyalangan to'lov', included: true },
+          { name: '100% himoyalangan to\'lov', included: true },
           { name: 'Kafolatlangan xizmat sifati', included: true },
           { name: 'Shaffoflik va adolat', included: true },
           { name: 'Ishonchli reyting tizimi', included: true },
@@ -76,7 +76,7 @@ export const translations = {
         price_uzs: '50,000',
         price_usd: '4',
         period: '/hujjat',
-        desc: 'Barcha turdagi huquqiy hujjatlar, shartnomalar, va da'vo arizalarini professional yuristlar tomonidan tez va sifatli tayyorlash.',
+        desc: 'Barcha turdagi huquqiy hujjatlar, shartnomalar, va da\'vo arizalarini professional yuristlar tomonidan tez va sifatli tayyorlash.',
         features: [
           { name: 'Tezkor hujjat tayyorlash', included: true },
           { name: 'Qonunchilikka 100% moslik', included: true },
@@ -136,7 +136,7 @@ export const translations = {
         },
         {
           q: "To'lovni qaytarib olsa bo'ladimi?",
-          a: "Agar xizmat ko'rsatilmagan yoki sifatsiz bo'lsa, platforma qoidalariga muvofiq to'lovni qaytarish tizimi mavjud."
+          a: "Agar xizmat ko'rsatilmagan yoki sifatsiz bo'lsa, platforma qoidalariga muvofiq to\'lovni qaytarish tizimi mavjud."
         }
       ]
     },
