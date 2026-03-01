@@ -50,6 +50,10 @@ export default function Navbar() {
     { name: t('nav.about'), path: '/about' },
   ];
 
+  if (user && user.role === 'admin') {
+    navLinks.push({ name: 'Admin Panel', path: '/admin' });
+  }
+
   return (
     <nav 
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${

@@ -96,7 +96,7 @@ export default function Dashboard() {
               </div>
               
               <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700 text-center">
-                <Button className="btn-primary w-full sm:w-auto">
+                <Button onClick={() => navigate('/chat/document')} className="btn-primary w-full sm:w-auto">
                   {t('dashboard.applications.new_btn')}
                 </Button>
               </div>
@@ -114,7 +114,7 @@ export default function Dashboard() {
                  <p className="text-blue-100 text-sm mb-4">
                    {t('dashboard.sidebar.protection.desc')}
                  </p>
-                 <Button className="bg-white text-[var(--color-primary)] w-full text-sm py-2 h-auto hover:bg-blue-50 dark:text-blue-900">
+                 <Button onClick={() => navigate('/lawyers')} className="bg-white text-[var(--color-primary)] w-full text-sm py-2 h-auto hover:bg-blue-50 dark:text-blue-900">
                    {t('dashboard.sidebar.protection.btn')}
                  </Button>
                </div>

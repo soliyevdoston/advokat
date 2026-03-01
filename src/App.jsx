@@ -13,6 +13,7 @@ import Contact from './pages/Contact';
 import ChatPage from './pages/Chat';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import ConstitutionPage from './pages/ConstitutionPage';
 
 import { LanguageProvider } from './context/LanguageContext';
@@ -49,6 +50,16 @@ function App() {
                   element={
                     <PrivateRoute>
                       <Dashboard />
+                    </PrivateRoute>
+                  }
+                />
+                
+                {/* Admin paneli */}
+                <Route
+                  path="/admin"
+                  element={
+                    <PrivateRoute>
+                      <AdminDashboard />
                     </PrivateRoute>
                   }
                 />
