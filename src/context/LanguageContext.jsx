@@ -23,16 +23,25 @@ export const LanguageProvider = ({ children }) => {
 
   const t = (path) => {
     const keys = path.split('.');
-    let value = translations[currentLanguage];
-    
-    for (const key of keys) {
-      if (value && value[key]) {
-        value = value[key];
-      } else {
-        return path; // Return key if translation not found
+
+    // Tilni sinab ko'rish, agar mavjud bo'lmasa uz ga fallback
+    const langs = [currentLanguage, 'uz'];
+    for (const lang of langs) {
+      if (!translations[lang]) continue;
+      let value = translations[lang];
+      let found = true;
+      for (const key of keys) {
+        if (value !== null && value !== undefined && (Array.isArray(value) ? key < value.length : key in Object(value))) {
+          value = value[key];
+        } else {
+          found = false;
+          break;
+        }
       }
+      if (found && value !== null && value !== undefined) return value;
     }
-    return value;
+
+    return path; // fallback: key yo'li
   };
 
   const languages = [
