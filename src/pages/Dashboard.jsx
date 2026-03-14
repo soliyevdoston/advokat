@@ -1,25 +1,252 @@
-import React from 'react';
-import { useAuth } from '../context/AuthContext';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  FilePlus2,
+  FileText,
+  Loader2,
+  LogOut,
+  MessageSquare,
+  RefreshCw,
+  ShieldCheck,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, MessageSquare, Clock, Settings, Bell, Shield, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
-import { useLanguage } from '../context/LanguageContext';
+import { openPaymentGateway } from '../utils/paymentGate';
+
+const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
+const LOCAL_SUBSCRIPTIONS_KEY = 'legallink_user_subscriptions_v1';
+
+const TAB_ITEMS = [
+  { key: 'overview', label: 'Umumiy' },
+  { key: 'applications', label: 'Arizalar' },
+  { key: 'payments', label: 'Obuna va tolov' },
+  { key: 'chats', label: 'Chatlar' },
+];
+
+const toArray = (value) => (Array.isArray(value) ? value : []);
+const readJSON = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const saveJSON = (key, value) => {
+  localStorage.setItem(key, JSON.stringify(value));
+};
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, authToken, apiBase, logout, listSupportConversations, safeError } = useAuth();
   const navigate = useNavigate();
-  const { t } = useLanguage();
+
+  const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const [applications, setApplications] = useState(() => readJSON(LOCAL_APPLICATIONS_KEY, []));
+  const [subscriptions, setSubscriptions] = useState(() => readJSON(LOCAL_SUBSCRIPTIONS_KEY, []));
+  const [conversations, setConversations] = useState([]);
+
+  const [appForm, setAppForm] = useState({
+    title: '',
+    type: 'general',
+    description: '',
+  });
+  const [savingApp, setSavingApp] = useState(false);
+
+  const apiRequest = useCallback(
+    async (paths, { method = 'GET', body } = {}) => {
+      let lastErr = null;
+
+      for (const path of paths) {
+        try {
+          const response = await fetch(`${apiBase}${path}`, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+            },
+            body: body ? JSON.stringify(body) : undefined,
+          });
+
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            const err = new Error(data?.message || data?.error || `Server xatosi: ${response.status}`);
+            err.status = response.status;
+            throw err;
+          }
+
+          return data;
+        } catch (err) {
+          lastErr = err;
+          if (err?.status === 404 || err?.status === 405) continue;
+          throw err;
+        }
+      }
+
+      throw lastErr || new Error('Endpoint topilmadi');
+    },
+    [apiBase, authToken]
+  );
+
+  const loadDashboardData = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const [appsRes, subRes, chatsRes] = await Promise.allSettled([
+        apiRequest(['/applications', '/documents', '/requests', '/api/applications'], { method: 'GET' }),
+        apiRequest(['/subscriptions', '/users/subscriptions', '/billing/subscriptions', '/api/subscriptions'], { method: 'GET' }),
+        listSupportConversations(),
+      ]);
+
+      if (appsRes.status === 'fulfilled') {
+        const payload = appsRes.value;
+        const appList = toArray(payload).length
+          ? toArray(payload)
+          : (payload?.applications || payload?.documents || payload?.items || payload?.data || []);
+        setApplications(appList);
+        saveJSON(LOCAL_APPLICATIONS_KEY, appList);
+      }
+
+      if (subRes.status === 'fulfilled') {
+        const payload = subRes.value;
+        const subList = toArray(payload).length
+          ? toArray(payload)
+          : (payload?.subscriptions || payload?.items || payload?.data || []);
+        setSubscriptions(subList);
+        saveJSON(LOCAL_SUBSCRIPTIONS_KEY, subList);
+      }
+
+      if (chatsRes.status === 'fulfilled') {
+        setConversations(Array.isArray(chatsRes.value) ? chatsRes.value : []);
+      }
+
+      if (
+        appsRes.status === 'rejected' &&
+        subRes.status === 'rejected' &&
+        chatsRes.status === 'rejected'
+      ) {
+        throw new Error("Ma'lumotlarni yuklab bo'lmadi");
+      }
+    } catch (err) {
+      setError(safeError(err, "Kabinet ma'lumotlarini yuklashda xatolik"));
+      setApplications(readJSON(LOCAL_APPLICATIONS_KEY, []));
+      setSubscriptions(readJSON(LOCAL_SUBSCRIPTIONS_KEY, []));
+    } finally {
+      setLoading(false);
+    }
+  }, [apiRequest, listSupportConversations, safeError]);
+
+  useEffect(() => {
+    if (user) {
+      loadDashboardData();
+    }
+  }, [loadDashboardData, user]);
+
+  const stats = useMemo(() => {
+    const openApplications = applications.filter(
+      (item) => !['resolved', 'closed'].includes(String(item?.status || '').toLowerCase())
+    ).length;
+    const activeSubscriptions = subscriptions.filter((item) =>
+      String(item?.status || '').toLowerCase().includes('active')
+    ).length;
+    const openChats = conversations.filter((item) => String(item?.status || '').toLowerCase() !== 'closed').length;
+
+    return { openApplications, activeSubscriptions, openChats };
+  }, [applications, subscriptions, conversations]);
 
   const handleLogout = () => {
     logout();
     navigate('/');
   };
 
-  const stats = [
-    { label: t('dashboard.stats.active'), value: '2', icon: FileText, color: 'bg-blue-500' },
-    { label: t('dashboard.stats.messages'), value: '5', icon: MessageSquare, color: 'bg-green-500' },
-    { label: t('dashboard.stats.pending'), value: '1', icon: Clock, color: 'bg-amber-500' },
-  ];
+  const handleCreateApplication = async (event) => {
+    event.preventDefault();
+    if (savingApp) return;
+
+    if (!appForm.title.trim() || !appForm.description.trim()) {
+      setError('Ariza nomi va tavsifini kiriting');
+      return;
+    }
+
+    setSavingApp(true);
+    setError('');
+    setNotice('');
+
+    const payload = {
+      title: appForm.title.trim(),
+      subject: appForm.title.trim(),
+      type: appForm.type,
+      description: appForm.description.trim(),
+      text: appForm.description.trim(),
+      status: 'new',
+      createdAt: new Date().toISOString(),
+      userEmail: user?.email || '',
+    };
+
+    try {
+      const data = await apiRequest(
+        ['/applications', '/requests', '/documents', '/api/applications'],
+        { method: 'POST', body: payload }
+      );
+
+      const created = data?.application || data?.document || data?.data || data || payload;
+      const next = [created, ...applications];
+      setApplications(next);
+      saveJSON(LOCAL_APPLICATIONS_KEY, next);
+      setNotice('Ariza muvaffaqiyatli yaratildi');
+      setAppForm({ title: '', type: 'general', description: '' });
+    } catch (err) {
+      const localCreated = { ...payload, id: `local_app_${Date.now()}` };
+      const next = [localCreated, ...applications];
+      setApplications(next);
+      saveJSON(LOCAL_APPLICATIONS_KEY, next);
+      setNotice('Serverga yuborilmadi, local ariza sifatida saqlandi');
+      setAppForm({ title: '', type: 'general', description: '' });
+      setError(safeError(err, "Ariza yaratishda xatolik"));
+    } finally {
+      setSavingApp(false);
+    }
+  };
+
+  const handlePay = (gateway) => {
+    setError('');
+    setNotice('');
+    const amount = 50000;
+    const opened = openPaymentGateway({
+      gateway,
+      amount,
+      plan: 'pro_subscription',
+      userEmail: user?.email || '',
+    });
+
+    if (!opened) {
+      setError(`${gateway.toUpperCase()} tolovi sozlanmagan. .env ga VITE_${gateway.toUpperCase()}_* qiymatlarini kiriting.`);
+      return;
+    }
+
+    const next = [
+      {
+        id: `sub_${Date.now()}`,
+        plan: 'PRO',
+        amount,
+        gateway,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      },
+      ...subscriptions,
+    ];
+    setSubscriptions(next);
+    saveJSON(LOCAL_SUBSCRIPTIONS_KEY, next);
+    setNotice(`${gateway.toUpperCase()} orqali tolov sahifasiga yonaltirildi`);
+  };
 
   if (!user) {
     return (
@@ -30,129 +257,297 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen pt-32 pb-20 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+    <div className="min-h-screen pt-28 pb-20 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-2">
-              {t('dashboard.welcome')}, {user.name || user.email}!
+            <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white">
+              Salom, {user.name || user.email}
             </h1>
-            <p className="text-slate-600 dark:text-slate-300">{t('dashboard.subtitle')}</p>
+            <p className="text-slate-600 dark:text-slate-300 text-sm mt-1">
+              Shaxsiy kabinet: arizalar, chatlar va obuna boshqaruvi
+            </p>
           </div>
-          <div className="flex gap-3">
-             <Button variant="outline" className="gap-2 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-               <Settings size={18} /> {t('dashboard.settings')}
-             </Button>
-             <Button onClick={handleLogout} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20">
-               <LogOut size={18} className="mr-2" /> {t('dashboard.logout')}
-             </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={loadDashboardData} className="gap-2">
+              <RefreshCw size={16} /> Yangilash
+            </Button>
+            <Button onClick={handleLogout} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
+              <LogOut size={16} className="mr-2" /> Chiqish
+            </Button>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          {stats.map((stat, index) => (
-            <div key={index} className="surface-card p-6 rounded-2xl flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white ${stat.color}`}>
-                <stat.icon size={24} />
-              </div>
-              <div>
-                <p className="text-3xl font-bold text-slate-900 dark:text-white">{stat.value}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{stat.label}</p>
-              </div>
-            </div>
+        {error && (
+          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+            {error}
+          </div>
+        )}
+        {notice && (
+          <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-3 text-sm">
+            {notice}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-7">
+          <StatBox icon={FileText} title="Ochilgan ariza" value={stats.openApplications} />
+          <StatBox icon={MessageSquare} title="Ochiq chat" value={stats.openChats} />
+          <StatBox icon={CreditCard} title="Faol obuna" value={stats.activeSubscriptions} />
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-6">
+          {TAB_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setActiveTab(item.key)}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                activeTab === item.key
+                  ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              {item.label}
+            </button>
           ))}
         </div>
 
-        {/* Recent Activity & Important Notices */}
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content Area */}
-          <div className="lg:col-span-2 space-y-8">
-            <div className="surface-card p-6 rounded-3xl">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-                <FileText size={20} className="text-[var(--color-primary)] dark:text-blue-400" />
-                {t('dashboard.applications.title')}
-              </h2>
-              
-              <div className="space-y-4">
-                {[1, 2].map((i) => (
-                  <div key={i} className="surface-card flex items-center justify-between p-4 rounded-xl dark:bg-slate-700/30 dark:border-slate-600 dark:hover:bg-slate-700 hover:shadow-md">
-                    <div className="flex gap-4 items-center">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
-                        #{i}04
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900 dark:text-white">{t('dashboard.applications.items.inheritance')}</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">12 Feb, 2026</p>
-                      </div>
-                    </div>
-                    <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-200 rounded-lg text-xs font-bold">
-                      {t('dashboard.applications.status.process')}
-                    </span>
+        {loading ? (
+          <div className="surface-card rounded-3xl p-10 flex flex-col items-center text-slate-500">
+            <Loader2 size={30} className="animate-spin mb-3" />
+            Yuklanmoqda...
+          </div>
+        ) : (
+          <>
+            {activeTab === 'overview' && (
+              <div className="grid lg:grid-cols-3 gap-5">
+                <Card title="Tez amallar">
+                  <div className="space-y-2">
+                    <Button onClick={() => setActiveTab('applications')} className="btn-primary w-full">Ariza yaratish</Button>
+                    <Button onClick={() => setActiveTab('payments')} variant="outline" className="w-full">Obuna ulash</Button>
+                    <Button onClick={() => navigate('/chat/support')} variant="outline" className="w-full">Support chatga kirish</Button>
                   </div>
-                ))}
+                </Card>
+                <Card title="Oxirgi arizalar">
+                  {applications.length === 0 ? <Empty text="Hali ariza yo'q" /> : (
+                    <ul className="space-y-2">
+                      {applications.slice(0, 4).map((item, idx) => (
+                        <li key={String(item.id || idx)} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <p className="font-medium text-slate-900 dark:text-white">{item.title || item.subject || 'Nomsiz ariza'}</p>
+                          <p className="text-xs text-slate-500 mt-1">{item.status || 'new'}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
+                <Card title="Tolov holati">
+                  {subscriptions.length === 0 ? <Empty text="Obuna topilmadi" /> : (
+                    <ul className="space-y-2">
+                      {subscriptions.slice(0, 4).map((item, idx) => (
+                        <li key={String(item.id || idx)} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <p className="font-medium text-slate-900 dark:text-white">{item.plan || 'PRO'} - {item.amount || 50000} UZS</p>
+                          <p className="text-xs text-slate-500 mt-1">{item.gateway || item.type || '-'} / {item.status || 'pending'}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
               </div>
-              
-              <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700 text-center">
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button onClick={() => navigate('/chat/document')} className="btn-primary w-full sm:w-auto">
-                    {t('dashboard.applications.new_btn')}
-                  </Button>
-                  <Button onClick={() => navigate('/chat/support')} variant="outline" className="w-full sm:w-auto">
-                    Mutaxassis bilan chat
-                  </Button>
+            )}
+
+            {activeTab === 'applications' && (
+              <div className="grid lg:grid-cols-2 gap-5">
+                <Card title="Yangi ariza yaratish">
+                  <form onSubmit={handleCreateApplication} className="space-y-3">
+                    <Field label="Ariza nomi" value={appForm.title} onChange={(v) => setAppForm((p) => ({ ...p, title: v }))} />
+                    <label className="block space-y-1">
+                      <span className="text-xs text-slate-500">Turi</span>
+                      <select
+                        value={appForm.type}
+                        onChange={(e) => setAppForm((p) => ({ ...p, type: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"
+                      >
+                        <option value="general">Umumiy murojaat</option>
+                        <option value="document">Hujjat tayyorlash</option>
+                        <option value="consultation">Maslahat</option>
+                        <option value="court">Sud masalasi</option>
+                      </select>
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs text-slate-500">Tavsif</span>
+                      <textarea
+                        rows={4}
+                        value={appForm.description}
+                        onChange={(e) => setAppForm((p) => ({ ...p, description: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"
+                      />
+                    </label>
+                    <Button type="submit" disabled={savingApp} className="btn-primary w-full">
+                      {savingApp ? <Loader2 size={16} className="animate-spin" /> : <FilePlus2 size={16} className="mr-2" />}
+                      Ariza yuborish
+                    </Button>
+                  </form>
+                </Card>
+
+                <Card title="Mening arizalarim">
+                  {applications.length === 0 ? <Empty text="Arizalar hali yo'q" /> : (
+                    <div className="space-y-2 max-h-[450px] overflow-auto pr-1">
+                      {applications.map((item, idx) => (
+                        <div key={String(item.id || item._id || idx)} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <p className="font-medium text-slate-900 dark:text-white">{item.title || item.subject || 'Nomsiz ariza'}</p>
+                          <p className="text-xs text-slate-500 mt-1">{item.description || item.text || '-'}</p>
+                          <div className="mt-2 inline-flex text-xs px-2 py-1 rounded-lg bg-amber-100/80 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                            {item.status || 'new'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+            )}
+
+            {activeTab === 'payments' && (
+              <div className="grid lg:grid-cols-3 gap-5">
+                <Card title="PRO obuna">
+                  <p className="text-slate-600 dark:text-slate-300 text-sm mb-4">
+                    50 000 UZS / oy. Click yoki Payme orqali tolov qiling.
+                  </p>
+                  <ul className="space-y-2 text-sm mb-4">
+                    <li className="inline-flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-500" /> 24/7 support chat</li>
+                    <li className="inline-flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-500" /> Arizalarda ustuvor korib chiqish</li>
+                    <li className="inline-flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-500" /> Hujjatlar tarixi saqlanadi</li>
+                  </ul>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => handlePay('click')}
+                      className="w-full px-4 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700"
+                    >
+                      CLICK orqali tolov
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePay('payme')}
+                      className="w-full px-4 py-3 rounded-xl bg-[#1f3bff] text-white font-semibold hover:opacity-90"
+                    >
+                      PAYME orqali tolov
+                    </button>
+                  </div>
+                </Card>
+
+                <Card title="Tolov yo'riqnomasi">
+                  <ol className="text-sm text-slate-600 dark:text-slate-300 space-y-2 list-decimal list-inside">
+                    <li>To'lov turini tanlang (Click yoki Payme).</li>
+                    <li>Ilova/sahifaga avtomatik yonaltirilasiz.</li>
+                    <li>To'lovdan keyin status `active` bo'lib yangilanadi.</li>
+                  </ol>
+                </Card>
+
+                <Card title="Obuna tarixi">
+                  {subscriptions.length === 0 ? <Empty text="Tolovlar hali yo'q" /> : (
+                    <div className="space-y-2 max-h-[420px] overflow-auto pr-1">
+                      {subscriptions.map((item, idx) => (
+                        <div key={String(item.id || idx)} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <p className="font-medium text-slate-900 dark:text-white">{item.plan || 'PRO'} - {item.amount || 50000} UZS</p>
+                          <p className="text-xs text-slate-500 mt-1">{item.gateway || '-'} / {item.status || 'pending'}</p>
+                          <p className="text-xs text-slate-400 mt-1">{item.createdAt || item.expiresAt || '-'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+            )}
+
+            {activeTab === 'chats' && (
+              <div className="grid lg:grid-cols-3 gap-5">
+                <Card title="Chat markazi">
+                  <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                    Support yoki advokat bilan alohida chat ochishingiz mumkin.
+                  </p>
+                  <div className="space-y-2">
+                    <Button onClick={() => navigate('/chat/support')} className="btn-primary w-full">
+                      Support chatga kirish
+                    </Button>
+                    <Button onClick={() => navigate('/lawyers')} variant="outline" className="w-full">
+                      Advokat tanlash
+                    </Button>
+                  </div>
+                </Card>
+
+                <div className="lg:col-span-2">
+                  <Card title="Suhbatlar ro'yxati">
+                    {conversations.length === 0 ? <Empty text="Hali chatlar yo'q" /> : (
+                      <div className="space-y-2 max-h-[460px] overflow-auto pr-1">
+                        {conversations.map((conv) => (
+                          <div key={conv.id} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-medium text-slate-900 dark:text-white">{conv.clientName || conv.clientEmail || 'Suhbat'}</p>
+                              <span className={`text-xs px-2 py-1 rounded-md ${String(conv.status || '').toLowerCase() === 'closed' ? 'bg-slate-200 dark:bg-slate-700 text-slate-600' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'}`}>
+                                {conv.status || 'open'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">{conv.lastMessage || 'Xabar yoq'}</p>
+                            <p className="text-xs text-slate-400 mt-1 inline-flex items-center gap-1"><Clock3 size={12} /> {conv.updatedAt || conv.createdAt || '-'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-8">
-            <div className="bg-[var(--color-primary)] dark:bg-blue-900 p-6 rounded-3xl text-white relative overflow-hidden">
-               <div className="relative z-10">
-                 <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-                   <Shield size={20} />
-                   {t('dashboard.sidebar.protection.title')}
-                 </h3>
-                 <p className="text-blue-100 text-sm mb-4">
-                   {t('dashboard.sidebar.protection.desc')}
-                 </p>
-                 <Button onClick={() => navigate('/lawyers')} className="bg-white text-[var(--color-primary)] w-full text-sm py-2 h-auto hover:bg-blue-50 dark:text-blue-900">
-                   {t('dashboard.sidebar.protection.btn')}
-                 </Button>
-               </div>
-               {/* Pattern */}
-               <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-            </div>
-
-            <div className="surface-card p-6 rounded-3xl">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                <Bell size={20} />
-                {t('dashboard.sidebar.notices.title')}
-              </h3>
-              <div className="space-y-4">
-                 <div className="flex gap-3 items-start pb-4 border-b border-slate-50 dark:border-slate-700">
-                   <div className="w-2 h-2 rounded-full bg-red-500 mt-2 flex-shrink-0"></div>
-                   <div>
-                     <p className="text-sm font-medium text-slate-900 dark:text-slate-200">{t('dashboard.sidebar.notices.items.lawyer_reply')}</p>
-                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">20 min ago</p>
-                   </div>
-                 </div>
-                 <div className="flex gap-3 items-start">
-                   <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 mt-2 flex-shrink-0"></div>
-                   <div>
-                     <p className="text-sm font-medium text-slate-900 dark:text-slate-200">{t('dashboard.sidebar.notices.items.maintenance')}</p>
-                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">1 day ago</p>
-                   </div>
-                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
+            )}
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+function Card({ title, children }) {
+  return (
+    <div className="surface-card rounded-3xl p-5">
+      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 inline-flex items-center gap-2">
+        <ShieldCheck size={18} className="text-[var(--color-primary)] dark:text-blue-400" />
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+function StatBox({ icon, title, value }) {
+  return (
+    <div className="surface-card rounded-2xl p-4 flex items-center gap-3">
+      <div className="w-11 h-11 rounded-xl bg-[var(--color-primary)] text-white flex items-center justify-center">
+        {React.createElement(icon, { size: 20 })}
+      </div>
+      <div>
+        <p className="text-xs text-slate-500">{title}</p>
+        <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange }) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-xs text-slate-500">{label}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"
+      />
+    </label>
+  );
+}
+
+function Empty({ text }) {
+  return (
+    <div className="py-10 text-center text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+      {text}
     </div>
   );
 }
