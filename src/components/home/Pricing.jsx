@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { Check } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
+import { openClickPayment } from '../../utils/clickPayment';
 const MotionDiv = motion.div;
 
 export default function Pricing() {
   const [currency, setCurrency] = useState('uzs'); // 'uzs' yoki 'usd'
   const { t } = useLanguage();
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const services = [
     {
@@ -24,19 +28,54 @@ export default function Pricing() {
       popular: true
     },
     {
-      id: 'document',
-      name: t('pricing.document.title'),
-      price: currency === 'uzs' ? t('pricing.document.price_uzs') : t('pricing.document.price_usd'),
-      period: currency === 'usd' ? '' : t('pricing.document.period') || '',
-      priceDesc: currency === 'uzs' ? t('pricing.currency_uzs') : t('pricing.currency_usd'),
-      desc: t('pricing.document.desc'),
-      features: t('pricing.document.features') || [],
-      cta: t('pricing.document.cta'),
-      link: '/chat/document',
+      id: 'subscription',
+      name: 'Hujjat tayyorlash',
+      price: '50,000',
+      period: '/hujjat',
+      priceDesc: 'UZS',
+      desc: "Barcha turdagi huquqiy hujjatlar, shartnomalar, va da'vo arizalarini professional yuristlar tomonidan tez va sifatli tayyorlash.",
+      features: [
+        'Tezkor hujjat tayyorlash',
+        'Qonunchilikka 100% moslik',
+        'Elektron shaklda yetkazib berish',
+        'Xatolar uchun qayta bepul tahrirlash',
+        'Konsultatsiya bepul',
+      ],
+      cta: 'Hujjat buyurtma qilish',
+      checkout: 'click',
+      amountUzs: 50000,
+      amountUsd: 4.5,
+      freeNote: '1 ta hujjat tekin',
+      discount: '12% chegirma',
       popular: false,
-      freeNote: '1 ta hujjat tekin'
-    }
+    },
   ];
+
+  const handleCheckout = (service) => {
+    if (service.checkout !== 'click') return;
+
+    if (!user) {
+      navigate('/auth', {
+        state: {
+          isLogin: false,
+          from: { pathname: '/' },
+          source: 'click_checkout',
+        },
+      });
+      return;
+    }
+
+    const amount = currency === 'usd' ? service.amountUsd : service.amountUzs;
+    const opened = openClickPayment({
+      amount,
+      plan: service.id,
+      userEmail: user?.email || '',
+    });
+
+    if (!opened) {
+      window.alert('Click to‘lovi sozlanmagan. .env faylga VITE_CLICK_* qiymatlarini kiriting.');
+    }
+  };
 
   return (
     <section className="py-24 bg-slate-50 dark:bg-slate-900 transition-colors duration-300 relative overflow-hidden" id="pricing">
@@ -121,6 +160,22 @@ export default function Pricing() {
                     {service.freeNote}
                   </span>
                 )}
+                {service.discount && (
+                  <span className="inline-flex mb-2 ml-2 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800">
+                    {service.discount}
+                  </span>
+                )}
+                {service.checkout === 'click' && (
+                  <button
+                    type="button"
+                    onClick={() => handleCheckout(service)}
+                    className="inline-flex mb-2 ml-2 items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800 hover:opacity-90 transition-opacity"
+                    title="Click ilovasi yoki to'lov sahifasiga o'tish"
+                  >
+                    <span className="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white items-center justify-center text-[10px] leading-none">C</span>
+                    CLICK
+                  </button>
+                )}
                 <p className="text-slate-600 dark:text-slate-300 mt-4 text-[15px] leading-relaxed">
                   {service.desc}
                 </p>
@@ -142,17 +197,30 @@ export default function Pricing() {
               </div>
 
               <div className="flex-shrink-0 mt-auto">
-                <Link to={service.link} className="block w-full">
-                  <Button 
+                {service.checkout === 'click' ? (
+                  <Button
+                    onClick={() => handleCheckout(service)}
                     className={`w-full py-4 text-lg font-bold transition-all duration-300 shadow-md hover:shadow-xl ${
-                      service.popular 
-                        ? 'btn-primary' 
+                      service.popular
+                        ? 'btn-primary'
                         : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-600'
                     }`}
                   >
                     {service.cta}
                   </Button>
-                </Link>
+                ) : (
+                  <Link to={service.link} className="block w-full">
+                    <Button
+                      className={`w-full py-4 text-lg font-bold transition-all duration-300 shadow-md hover:shadow-xl ${
+                        service.popular
+                          ? 'btn-primary'
+                          : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-600'
+                      }`}
+                    >
+                      {service.cta}
+                    </Button>
+                  </Link>
+                )}
               </div>
             </MotionDiv>
           ))}

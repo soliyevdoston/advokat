@@ -139,6 +139,12 @@ const normalizeMessage = (msg = {}) => ({
 });
 
 const CHAT_ENDPOINT = '/chats';
+const LOGIN_ENDPOINTS = ['/auth/login', '/login', '/users/login'];
+const SEND_CODE_ENDPOINTS = ['/auth/send-code', '/send-code', '/users/send-code'];
+const VERIFY_CODE_ENDPOINTS = ['/auth/verify-code', '/verify-code', '/users/verify-code'];
+const REGISTER_ENDPOINTS = ['/auth/register', '/users/register'];
+const CREATE_ADMIN_ENDPOINTS = ['/users/create_admin', '/users/create-admin', '/create_admin'];
+const USERS_ENDPOINTS = ['/users/', '/users', '/auth/users'];
 
 const normalizeParty = (value) => {
   const raw = String(value ?? '').trim();
@@ -403,13 +409,13 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const data = await apiRequest('/auth/login', {
+      const data = await apiRequestAny(LOGIN_ENDPOINTS, {
         method: 'POST',
         body: { email, password },
       });
 
-      const token = data.token || data.accessToken;
-      const userData = data.user || data.data?.user || data;
+      const token = data.token || data.accessToken || data.data?.token || data.data?.accessToken;
+      const userData = data.user || data.data?.user || data.data || data;
 
       if (!token) {
         throw new Error('Token server tomonidan qaytarilmadi');
@@ -428,7 +434,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (email, password) => {
     try {
-      const data = await apiRequestAny(['/auth/register', '/users/register'], {
+      const data = await apiRequestAny(REGISTER_ENDPOINTS, {
         method: 'POST',
         body: { email, password },
       });
@@ -477,7 +483,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const sendCode = async (email, password) => {
-    const data = await apiRequest('/auth/send-code', {
+    const data = await apiRequestAny(SEND_CODE_ENDPOINTS, {
       method: 'POST',
       body: { email, password },
     });
@@ -497,11 +503,12 @@ export const AuthProvider = ({ children }) => {
       throw new Error("Token topilmadi. Iltimos, qayta urinib ko'ring");
     }
 
-    const data = await apiRequest('/auth/verify-code', {
+    const data = await apiRequestAny(VERIFY_CODE_ENDPOINTS, {
       method: 'POST',
       body: {
         email,
         authToken: token,
+        token,
         code,
       },
     });
@@ -537,7 +544,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      const data = await apiRequest('/users/create_admin', {
+      const data = await apiRequestAny(CREATE_ADMIN_ENDPOINTS, {
         method: 'POST',
         token: authToken,
         body: { email, password },
@@ -583,7 +590,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      const data = await apiRequest('/users/', {
+      const data = await apiRequestAny(USERS_ENDPOINTS, {
         method: 'GET',
         token: authToken,
       });
