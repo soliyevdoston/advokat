@@ -1,73 +1,169 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Filter, Star, MapPin, Briefcase, Phone, MessageSquare, ShieldCheck, Search, Loader2, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { lawyers as localLawyers } from '../data/lawyers';    // fallback
 import LawyerFilter from '../components/lawyers/LawyerFilter';
-import LawyerModal  from '../components/lawyers/LawyerModal';
+import LawyerModal from '../components/lawyers/LawyerModal';
 import { Link } from 'react-router-dom';
+import { buildApiUrl } from '../config/appConfig';
+const MotionDiv = motion.div;
 
-const API = 'https://advokat-1.onrender.com';
+const LAWYER_ENDPOINTS = ['/lawyers', '/api/lawyers'];
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=800';
+
+const toNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeLawyer = (raw = {}) => {
+  const rawLocation = raw.location && typeof raw.location === 'object'
+    ? raw.location
+    : { city: raw.city || 'toshkent', district: raw.district || '' };
+  const cases = raw.cases || {};
+
+  return {
+    id: raw.id || raw._id || raw.lawyerId || `lawyer_${Date.now()}`,
+    name: raw.name || "Noma'lum advokat",
+    specialization: raw.specialization || 'civil',
+    rating: toNumber(raw.rating, 4.8),
+    reviews: toNumber(raw.reviews, 0),
+    cases: {
+      total: toNumber(cases.total, toNumber(raw.totalCases, 0)),
+      won: toNumber(cases.won, toNumber(raw.wonCases, 0)),
+    },
+    location: {
+      city: rawLocation.city || 'toshkent',
+      district: rawLocation.district || '',
+    },
+    image: raw.image || DEFAULT_AVATAR,
+    level: raw.level || 'first',
+    experience: toNumber(raw.experience, 1),
+    languages: Array.isArray(raw.languages)
+      ? raw.languages
+      : String(raw.languages || "O'zbek")
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+    license: raw.license || '-',
+    workHours: raw.workHours || '09:00 - 18:00',
+    bio: raw.bio || `${raw.name || 'Advokat'} bo'yicha ma'lumot hozircha yo'q`,
+    email: raw.email || '',
+    phone: raw.phone || '',
+    telegram: raw.telegram || '',
+  };
+};
+
+const getLocationLabel = (location, t) => {
+  if (!location) return '';
+  if (typeof location === 'string') return location;
+
+  const cityKey = location.city ? `data.locations.${location.city}` : '';
+  const districtKey = location.district ? `data.locations.${location.district}` : '';
+
+  const cityValue = cityKey ? t(cityKey) : '';
+  const districtValue = districtKey ? t(districtKey) : '';
+  const city = !cityKey || cityValue === cityKey ? (location.city || '') : cityValue;
+  const district = !districtKey || districtValue === districtKey ? (location.district || '') : districtValue;
+
+  return [city, district].filter(Boolean).join(', ');
+};
+
+const mapLawyerList = (data) => {
+  const list = Array.isArray(data) ? data : (data.lawyers || data.data || data.items || []);
+  return Array.isArray(list) ? list.map(normalizeLawyer) : [];
+};
+
+async function fetchLawyersAny(signal) {
+  let lastError = null;
+
+  for (const endpoint of LAWYER_ENDPOINTS) {
+    try {
+      const response = await fetch(buildApiUrl(endpoint), { signal });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const error = new Error(data?.message || data?.error || `Server xatosi: ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+
+      return mapLawyerList(data);
+    } catch (err) {
+      lastError = err;
+      if (err?.name === 'AbortError') throw err;
+      if (err?.status === 404 || err?.status === 405) continue;
+      throw err;
+    }
+  }
+
+  throw lastError || new Error('Advokatlar endpoint topilmadi');
+}
 
 const Lawyers = () => {
   const { t } = useLanguage();
-  const [lawyers,         setLawyers]         = useState([]);
-  const [isLoading,       setIsLoading]       = useState(true);
-  const [apiError,        setApiError]        = useState(null);
-  const [isFilterOpen,    setIsFilterOpen]    = useState(false);
-  const [selectedLawyer,  setSelectedLawyer]  = useState(null);
+  const [lawyers, setLawyers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedLawyer, setSelectedLawyer] = useState(null);
   const [filters, setFilters] = useState({
-    search: '', specialization: 'all', location: 'all', price: 'all'
+    search: '',
+    specialization: 'all',
+    location: 'all',
+    price: 'all',
   });
 
-  /* ── Backend dan advokatlarni olish ───────────────────────────────────── */
-  useEffect(() => {
-    let cancelled = false;
+  const loadLawyers = useCallback(async (signal) => {
     setIsLoading(true);
     setApiError(null);
 
-    fetch(`${API}/api/lawyers`)
-      .then(res => {
-        if (!res.ok) throw new Error(`Server xatosi: ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        if (cancelled) return;
-        // Backend { lawyers: [...] } yoki to'g'ridan array qaytarishi mumkin
-        const list = Array.isArray(data) ? data : (data.lawyers || data.data || []);
-        setLawyers(list.length > 0 ? list : localLawyers);
-      })
-      .catch(err => {
-        if (cancelled) return;
-        console.warn('Lawyers API xatosi, local data ishlatilmoqda:', err.message);
-        setApiError(err.message);
-        setLawyers(localLawyers);   // fallback
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    return () => { cancelled = true; };
+    try {
+      const list = await fetchLawyersAny(signal);
+      setLawyers(list);
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      setApiError(err.message || "Advokatlar ro'yxatini olishda xatolik yuz berdi");
+      setLawyers([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  /* ── Filterlash ───────────────────────────────────────────────────────── */
+  useEffect(() => {
+    const controller = new AbortController();
+    loadLawyers(controller.signal);
+    return () => controller.abort();
+  }, [loadLawyers]);
+
+  const locationOptions = useMemo(() => {
+    const unique = new Set();
+    lawyers.forEach((lawyer) => {
+      if (lawyer.location?.city) unique.add(lawyer.location.city);
+    });
+    return Array.from(unique);
+  }, [lawyers]);
+
   const filteredLawyers = useMemo(() => {
-    return lawyers.filter(lawyer => {
+    return lawyers.filter((lawyer) => {
       const specLabel = t(`lawyers_page.categories.${lawyer.specialization}`) || '';
-      const matchesSearch = lawyer.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-                            specLabel.toLowerCase().includes(filters.search.toLowerCase());
+      const locationLabel = getLocationLabel(lawyer.location, t).toLowerCase();
+      const searchText = filters.search.toLowerCase();
+
+      const matchesSearch =
+        lawyer.name.toLowerCase().includes(searchText) ||
+        specLabel.toLowerCase().includes(searchText) ||
+        locationLabel.includes(searchText);
+
       const matchesSpec = filters.specialization === 'all' || lawyer.specialization === filters.specialization;
-      const matchesLoc  = filters.location === 'all' ||
-                          lawyer.location?.city?.includes(filters.location) ||
-                          lawyer.location?.includes?.(filters.location);
+      const matchesLoc = filters.location === 'all' || lawyer.location?.city === filters.location;
+
       return matchesSearch && matchesSpec && matchesLoc;
     });
   }, [filters, lawyers, t]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[var(--color-surface-900)] pt-24 pb-20 transition-colors duration-300">
-
-      {/* Mobile Filter Toggle */}
       <div className="md:hidden fixed bottom-6 right-6 z-50">
         <button
           onClick={() => setIsFilterOpen(true)}
@@ -86,7 +182,6 @@ const Lawyers = () => {
       )}
 
       <div className="container mx-auto px-4">
-        {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-serif font-bold text-slate-900 dark:text-white mb-4">
             {t('lawyers_page.title')}
@@ -96,26 +191,24 @@ const Lawyers = () => {
           </p>
         </div>
 
-        {/* API xato bannerchasi (local data ishlatilayotganda) */}
         {apiError && !isLoading && (
           <div className="mb-6 flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-5 py-3 text-amber-700 dark:text-amber-400 text-sm">
             <AlertCircle size={18} className="flex-shrink-0" />
-            <span>Server bilan ulanishda muammo. Mahalliy ma'lumotlar ko'rsatilmoqda.</span>
+            <span>{apiError}</span>
           </div>
         )}
 
         <div className="flex flex-col md:flex-row gap-8 items-start">
-          {/* Sidebar */}
           <div className="w-full md:w-80 flex-shrink-0 sticky top-24">
             <LawyerFilter
               filters={filters}
               setFilters={setFilters}
               isOpen={isFilterOpen}
               onClose={() => setIsFilterOpen(false)}
+              locationOptions={locationOptions}
             />
           </div>
 
-          {/* Grid */}
           <div className="flex-grow w-full">
             <div className="mb-6 flex items-center justify-between">
               <p className="text-slate-600 dark:text-slate-400 font-medium">
@@ -126,20 +219,20 @@ const Lawyers = () => {
                   </span>
                 ) : (
                   <>
-                    <span className="text-blue-600 dark:text-blue-400 font-bold text-xl">
-                      {filteredLawyers.length}
-                    </span>{' '}
+                    <span className="text-blue-600 dark:text-blue-400 font-bold text-xl">{filteredLawyers.length}</span>{' '}
                     {t('lawyers_page.count')}
                   </>
                 )}
               </p>
             </div>
 
-            {/* Loading skeleton */}
             {isLoading && (
               <div className="grid md:grid-cols-2 gap-6">
-                {[1, 2, 3, 4].map(n => (
-                  <div key={n} className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-100 dark:border-slate-700 animate-pulse">
+                {[1, 2, 3, 4].map((n) => (
+                  <div
+                    key={n}
+                    className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-100 dark:border-slate-700 animate-pulse"
+                  >
                     <div className="flex gap-4">
                       <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
                       <div className="flex-1 space-y-3 pt-2">
@@ -148,21 +241,16 @@ const Lawyers = () => {
                         <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded-lg w-2/3" />
                       </div>
                     </div>
-                    <div className="flex gap-3 mt-6">
-                      <div className="flex-1 h-11 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-                      <div className="flex-1 h-11 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-                    </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Lawyers grid */}
             {!isLoading && filteredLawyers.length > 0 && (
               <div className="grid md:grid-cols-2 xl:grid-cols-2 gap-6">
                 <AnimatePresence>
-                  {filteredLawyers.map(lawyer => (
-                    <motion.div
+                  {filteredLawyers.map((lawyer) => (
+                    <MotionDiv
                       layout
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -202,9 +290,7 @@ const Lawyers = () => {
                           <div className="flex flex-wrap gap-3 text-sm text-slate-500 dark:text-slate-400">
                             <div className="flex items-center gap-1.5">
                               <MapPin size={14} />
-                              {lawyer.location?.city
-                                ? `${t(`data.locations.${lawyer.location.city}`)}${lawyer.location.district ? `, ${t(`data.locations.${lawyer.location.district}`)}` : ''}`
-                                : lawyer.location || ''}
+                              {getLocationLabel(lawyer.location, t)}
                             </div>
                             <div className="flex items-center gap-1.5">
                               <Briefcase size={14} />
@@ -217,52 +303,71 @@ const Lawyers = () => {
                       <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700 flex gap-3">
                         <Link
                           to={`/chat/lawyer/${lawyer.id}`}
-                          onClick={e => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
                           className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white py-3 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2 text-sm"
                         >
                           <MessageSquare size={18} />
                           {t('lawyer_card.chat_btn')}
                         </Link>
-                        <Link
-                          to={`/chat/lawyer/${lawyer.id}`}
-                          onClick={e => e.stopPropagation()}
-                          className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-200 dark:shadow-none"
-                        >
-                          <Phone size={18} />
-                          {t('lawyer_card.call_btn')}
-                        </Link>
+
+                        {lawyer.phone ? (
+                          <a
+                            href={`tel:${lawyer.phone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-200 dark:shadow-none"
+                          >
+                            <Phone size={18} />
+                            {t('lawyer_card.call_btn')}
+                          </a>
+                        ) : (
+                          <Link
+                            to={`/chat/lawyer/${lawyer.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-200 dark:shadow-none"
+                          >
+                            <Phone size={18} />
+                            {t('lawyer_card.call_btn')}
+                          </Link>
+                        )}
                       </div>
-                    </motion.div>
+                    </MotionDiv>
                   ))}
                 </AnimatePresence>
               </div>
             )}
 
-            {/* Bo'sh holat */}
             {!isLoading && filteredLawyers.length === 0 && (
               <div className="text-center py-20 bg-slate-50 dark:bg-slate-800 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700">
                 <div className="w-16 h-16 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Search size={32} className="text-slate-400" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{t('lawyers_page.empty_title')}</h3>
-                <p className="text-slate-500 dark:text-slate-400">{t('lawyers_page.empty_desc')}</p>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                  {apiError ? 'Advokatlar yuklanmadi' : t('lawyers_page.empty_title')}
+                </h3>
+                <p className="text-slate-500 dark:text-slate-400">
+                  {apiError ? "Backend bilan ulanishni tekshirib qayta urinib ko'ring." : t('lawyers_page.empty_desc')}
+                </p>
                 <button
                   onClick={() => setFilters({ search: '', specialization: 'all', location: 'all', price: 'all' })}
                   className="mt-6 text-blue-600 dark:text-blue-400 font-bold hover:underline"
                 >
                   Filtrlarni tozalash
                 </button>
+                {apiError && (
+                  <button
+                    onClick={() => loadLawyers()}
+                    className="ml-4 mt-6 text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                  >
+                    Qayta yuklash
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      <LawyerModal
-        lawyer={selectedLawyer}
-        isOpen={!!selectedLawyer}
-        onClose={() => setSelectedLawyer(null)}
-      />
+      <LawyerModal lawyer={selectedLawyer} isOpen={!!selectedLawyer} onClose={() => setSelectedLawyer(null)} />
     </div>
   );
 };

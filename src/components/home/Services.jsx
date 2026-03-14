@@ -3,6 +3,7 @@ import { Briefcase, Scale, Users, FileText, Globe, ShieldCheck } from 'lucide-re
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+const MotionDiv = motion.div;
 
 export default function Services() {
   const { t } = useLanguage();
@@ -58,12 +59,12 @@ export default function Services() {
               key={index}
               className="block h-full"
             >
-              <motion.div
+              <MotionDiv
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1 }}
-                className="p-4 md:p-8 h-full rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer flex flex-col items-center text-center md:block md:text-left"
+                className="surface-card p-4 md:p-8 h-full rounded-2xl hover:shadow-xl hover:-translate-y-1 group cursor-pointer flex flex-col items-center text-center md:block md:text-left"
               >
                 <div className="w-12 h-12 md:w-16 md:h-16 bg-white dark:bg-slate-700 rounded-2xl flex items-center justify-center mb-3 md:mb-6 shadow-sm group-hover:scale-110 transition-transform duration-300">
                   {React.cloneElement(service.icon, { className: "w-6 h-6 md:w-8 md:h-8 text-[var(--color-primary)] dark:text-blue-400" })}
@@ -72,7 +73,7 @@ export default function Services() {
                 <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-xs md:text-base line-clamp-3 md:line-clamp-none">
                   {service.desc}
                 </p>
-              </motion.div>
+              </MotionDiv>
             </Link>
           ))}
         </div>

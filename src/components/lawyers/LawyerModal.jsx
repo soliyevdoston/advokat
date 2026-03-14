@@ -1,15 +1,14 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, Briefcase, Star, Phone, MessageSquare, ShieldCheck, Award, Clock, Globe } from 'lucide-react';
+import { X, MapPin, Briefcase, Star, Phone, MessageSquare, ShieldCheck, Award, Clock } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import Button from '../ui/Button';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+const MotionDiv = motion.div;
 
-const LawyerModal = ({ lawyer, isOpen, onClose }) => {
+  const LawyerModal = ({ lawyer, isOpen, onClose }) => {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const { user } = useAuth(); // Assuming useAuth exists, if not remove or adjust
 
   if (!isOpen || !lawyer) return null;
 
@@ -22,7 +21,7 @@ const LawyerModal = ({ lawyer, isOpen, onClose }) => {
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
         {/* Backdrop */}
-        <motion.div
+        <MotionDiv
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -31,7 +30,7 @@ const LawyerModal = ({ lawyer, isOpen, onClose }) => {
         />
 
         {/* Modal */}
-        <motion.div
+        <MotionDiv
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -142,7 +141,7 @@ const LawyerModal = ({ lawyer, isOpen, onClose }) => {
                   </Button>
              </div>
           </div>
-        </motion.div>
+        </MotionDiv>
       </div>
     </AnimatePresence>
   );

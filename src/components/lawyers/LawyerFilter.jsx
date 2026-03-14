@@ -1,13 +1,12 @@
 import React from 'react';
-import { Filter, X, Search, MapPin } from 'lucide-react';
+import { X, Search, MapPin } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
-const LawyerFilter = ({ filters, setFilters, isOpen, onClose }) => {
+const LawyerFilter = ({ filters, setFilters, isOpen, onClose, locationOptions = [] }) => {
   const { t } = useLanguage();
 
-  const regions = [
-    "Toshkent sh.", "Samarqand sh.", "Farg'ona sh.", "Andijon sh.", "Namangan sh.", "Buxoro sh."
-  ];
+  const defaultRegions = ['toshkent', 'samarqand', 'fargona', 'andijon', 'namangan', 'buxoro'];
+  const regions = locationOptions.length ? locationOptions : defaultRegions;
 
   const categories = ['criminal', 'civil', 'family', 'business', 'labor', 'international', 'inheritance'];
 
@@ -84,7 +83,9 @@ const LawyerFilter = ({ filters, setFilters, isOpen, onClose }) => {
                 >
                     <option value="all" className="dark:bg-slate-900">Barcha hududlar</option>
                     {regions.map(r => (
-                        <option key={r} value={r} className="dark:bg-slate-900">{r}</option>
+                        <option key={r} value={r} className="dark:bg-slate-900">
+                          {t(`data.locations.${r}`) === `data.locations.${r}` ? r : t(`data.locations.${r}`)}
+                        </option>
                     ))}
                 </select>
             </div>

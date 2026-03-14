@@ -3,16 +3,17 @@ import { Star, MapPin, Briefcase } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
+const MotionDiv = motion.div;
 
 export default function LawyerCard({ lawyer, onClick }) {
   const { t } = useLanguage();
 
   return (
-    <motion.div 
+    <MotionDiv 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -8 }}
-      className="bg-white rounded-2xl shadow-sm hover:shadow-2xl border border-slate-100 overflow-hidden transition-all duration-300 cursor-pointer group"
+      className="surface-card rounded-2xl overflow-hidden hover:shadow-2xl cursor-pointer group"
       onClick={onClick}
     >
       <div className="aspect-[4/3] overflow-hidden relative">
@@ -62,6 +63,6 @@ export default function LawyerCard({ lawyer, onClick }) {
           {t('lawyer_card.profile_btn')}
         </Button>
       </div>
-    </motion.div>
+    </MotionDiv>
   );
 }

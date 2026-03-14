@@ -70,6 +70,41 @@
   .card-hover {
     @apply transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg;
   }
+
+  .surface-card {
+    @apply bg-white border border-slate-200 transition-all duration-300;
+    background-image: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 14px 38px -18px rgba(15, 23, 42, 0.42), 0 4px 12px -6px rgba(15, 23, 42, 0.24);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .surface-card:hover {
+    border-color: #94a3b8;
+    box-shadow: 0 20px 44px -20px rgba(15, 23, 42, 0.45), 0 8px 16px -8px rgba(15, 23, 42, 0.28);
+  }
+
+  .surface-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    border-radius: inherit inherit 0 0;
+    background: linear-gradient(90deg, #1a365d, #2c5282, #c5a572);
+    opacity: 0.32;
+    transition: opacity 300ms ease;
+    pointer-events: none;
+  }
+
+  .surface-card:hover::before {
+    opacity: 0.55;
+  }
+
+  :root.dark .surface-card {
+    @apply bg-slate-800 border-slate-700;
+    background-image: none;
+    box-shadow: none;
+  }
 }
 
 @keyframes fadeIn {

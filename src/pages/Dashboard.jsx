@@ -37,7 +37,7 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
           <div>
             <h1 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-2">
-              {t('dashboard.welcome')}, {user.name}!
+              {t('dashboard.welcome')}, {user.name || user.email}!
             </h1>
             <p className="text-slate-600 dark:text-slate-300">{t('dashboard.subtitle')}</p>
           </div>
@@ -54,7 +54,7 @@ export default function Dashboard() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           {stats.map((stat, index) => (
-            <div key={index} className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4 transition-colors">
+            <div key={index} className="surface-card p-6 rounded-2xl flex items-center gap-4">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white ${stat.color}`}>
                 <stat.icon size={24} />
               </div>
@@ -70,7 +70,7 @@ export default function Dashboard() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-8">
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+            <div className="surface-card p-6 rounded-3xl">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
                 <FileText size={20} className="text-[var(--color-primary)] dark:text-blue-400" />
                 {t('dashboard.applications.title')}
@@ -78,7 +78,7 @@ export default function Dashboard() {
               
               <div className="space-y-4">
                 {[1, 2].map((i) => (
-                  <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-600 hover:bg-white dark:hover:bg-slate-700 hover:shadow-md transition-all">
+                  <div key={i} className="surface-card flex items-center justify-between p-4 rounded-xl dark:bg-slate-700/30 dark:border-slate-600 dark:hover:bg-slate-700 hover:shadow-md">
                     <div className="flex gap-4 items-center">
                       <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
                         #{i}04
@@ -96,9 +96,14 @@ export default function Dashboard() {
               </div>
               
               <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700 text-center">
-                <Button onClick={() => navigate('/chat/document')} className="btn-primary w-full sm:w-auto">
-                  {t('dashboard.applications.new_btn')}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button onClick={() => navigate('/chat/document')} className="btn-primary w-full sm:w-auto">
+                    {t('dashboard.applications.new_btn')}
+                  </Button>
+                  <Button onClick={() => navigate('/chat/support')} variant="outline" className="w-full sm:w-auto">
+                    Mutaxassis bilan chat
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -122,7 +127,7 @@ export default function Dashboard() {
                <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+            <div className="surface-card p-6 rounded-3xl">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                 <Bell size={20} />
                 {t('dashboard.sidebar.notices.title')}

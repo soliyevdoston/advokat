@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 import { motion } from 'framer-motion';
+const MotionButton = motion.button;
 
 const Button = React.forwardRef(({ className, variant = 'primary', size = 'md', children, ...props }, ref) => {
   const variants = {
@@ -18,7 +19,7 @@ const Button = React.forwardRef(({ className, variant = 'primary', size = 'md', 
   };
 
   return (
-    <motion.button
+    <MotionButton
       ref={ref}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
@@ -31,7 +32,7 @@ const Button = React.forwardRef(({ className, variant = 'primary', size = 'md', 
       {...props}
     >
       {children}
-    </motion.button>
+    </MotionButton>
   );
 });
 

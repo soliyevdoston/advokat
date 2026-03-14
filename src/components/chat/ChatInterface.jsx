@@ -1,11 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Bot, User, MoreVertical, Phone, Video, Search, Smile, Loader2, AlertCircle } from 'lucide-react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
+import { Send, Paperclip, Bot, User, MoreVertical, Phone, Video, Search, Smile, Loader2, AlertCircle, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
-
-const API_BASE = 'https://advokat-1.onrender.com';
+import { buildApiUrl } from '../../config/appConfig';
+import { DOCUMENT_FREE_QUOTA_KEY } from '../../utils/documentQuota';
+const MotionDiv = motion.div;
 
 // Chat turlariga mos endpoint
 const CHAT_ENDPOINTS = {
@@ -15,17 +17,86 @@ const CHAT_ENDPOINTS = {
   lawyer: '/chat/support',
 };
 
-export default function ChatInterface({ title, subtitle, type = 'ai', initialMessage }) {
+const normalizeSources = (rawSources) => {
+  if (!Array.isArray(rawSources)) return [];
+
+  return rawSources
+    .map((item, index) => {
+      if (typeof item === 'string') {
+        return {
+          id: `src_${index}`,
+          title: item,
+          url: null,
+        };
+      }
+
+      if (item && typeof item === 'object') {
+        return {
+          id: item.id || `src_${index}`,
+          title: item.title || item.label || item.name || item.url || `Manba ${index + 1}`,
+          url: item.url || item.link || null,
+        };
+      }
+
+      return null;
+    })
+    .filter(Boolean)
+    .slice(0, 3);
+};
+
+const buildLexUzFallbackSource = (queryText) => {
+  const query = String(queryText || '').trim();
+  if (!query) return [];
+
+  const q = encodeURIComponent(query.slice(0, 120));
+  return [
+    {
+      id: `lexuz_${Date.now()}`,
+      title: 'Lex.uz qidiruv',
+      url: `https://lex.uz/search/all?query=${q}`,
+    },
+  ];
+};
+
+const normalizeConfidence = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  if (numeric <= 1) return Math.round(numeric * 100);
+  if (numeric <= 100) return Math.round(numeric);
+  return null;
+};
+
+const confidenceTone = (value) => {
+  if (value === null) return 'unknown';
+  if (value >= 80) return 'high';
+  if (value >= 55) return 'medium';
+  return 'low';
+};
+
+export default function ChatInterface({
+  title,
+  subtitle,
+  type = 'ai',
+  initialMessage,
+  initialUserPrompt = '',
+  quickCheckTitle = '',
+}) {
   const { t } = useLanguage();
-  const { authToken, user } = useAuth();
+  const navigate = useNavigate();
+  const { authToken, user, ensureSupportConversation, sendSupportMessage, safeError } = useAuth();
 
   const [messages, setMessages] = useState([
     { id: 1, text: initialMessage, sender: 'bot', timestamp: new Date() }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const messagesEndRef = useRef(null);
+  const [handoffLoading, setHandoffLoading] = useState(false);
+  const [handoffError, setHandoffError] = useState('');
+  const [lastAssistantMeta, setLastAssistantMeta] = useState(null);
+  const [bootstrapped, setBootstrapped] = useState(false);
+  const [freeDocumentRemaining, setFreeDocumentRemaining] = useState(true);
+  const messagesContainerRef = useRef(null);
+  const [stickToBottom, setStickToBottom] = useState(true);
 
   const allContacts = [
     { id: 'ai', name: t('chat_interface.roles.ai'), status: 'online', type: 'ai' },
@@ -40,16 +111,55 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
     return true;
   });
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  useEffect(() => {
+    if (type !== 'document' || !user) return;
+    try {
+      const raw = localStorage.getItem(DOCUMENT_FREE_QUOTA_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const key = String(user.email || user.id || 'guest');
+      const used = Number(parsed[key] || 0);
+      setFreeDocumentRemaining(used < 1);
+    } catch {
+      setFreeDocumentRemaining(true);
+    }
+  }, [type, user]);
+
+  const markFreeDocumentUsed = useCallback(() => {
+    if (type !== 'document' || !user) return;
+    try {
+      const raw = localStorage.getItem(DOCUMENT_FREE_QUOTA_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const key = String(user.email || user.id || 'guest');
+      const used = Number(parsed[key] || 0);
+      parsed[key] = used + 1;
+      localStorage.setItem(DOCUMENT_FREE_QUOTA_KEY, JSON.stringify(parsed));
+      setFreeDocumentRemaining(parsed[key] < 1);
+    } catch {
+      // ignore localStorage errors
+    }
+  }, [type, user]);
+
+  const scrollToBottom = (behavior = 'smooth') => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior });
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading]);
+    if (stickToBottom) {
+      scrollToBottom(messages.length <= 1 ? 'auto' : 'smooth');
+    }
+  }, [messages, isLoading, stickToBottom]);
+
+  const handleMessagesScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    setStickToBottom(distanceToBottom < 80);
+  };
 
   // Backend ga so'rov yuborish
-  const fetchBotResponse = async (userText) => {
+  const fetchBotResponse = useCallback(async (userText) => {
     const endpoint = CHAT_ENDPOINTS[type] || '/chat/ai';
 
     const headers = {
@@ -67,7 +177,7 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
       content: m.text,
     }));
 
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    const res = await fetch(buildApiUrl(endpoint), {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -84,32 +194,110 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
     }
 
     const data = await res.json();
-    // Backend { reply } yoki { message } yoki { response } qaytarishi mumkin
-    return data.reply || data.message || data.response || "Javob olinmadi.";
-  };
+    const confidence = normalizeConfidence(data.confidence ?? data.score ?? data.confidenceScore);
+    const parsedSources = normalizeSources(data.sources || data.references || data.citations);
+    const sources = parsedSources.length ? parsedSources : buildLexUzFallbackSource(userText);
+    const escalationReason =
+      data.escalationReason ||
+      data.reason ||
+      data.routingReason ||
+      (confidence !== null && confidence < 55 ? 'Javob ishonchliligi past bo‘ldi' : '');
+    const canResolveWithLawyer = Boolean(
+      data.handoffToAdmin ||
+      data.needsHuman ||
+      data.needs_human ||
+      data.escalate ||
+      (confidence !== null && confidence < 55)
+    );
 
-  const handleSend = async () => {
-    const text = inputValue.trim();
-    if (!text || isLoading) return;
+    return {
+      text: data.reply || data.message || data.response || "Javob olinmadi.",
+      handoffToAdmin: canResolveWithLawyer,
+      meta: {
+        confidence,
+        sources,
+        escalationReason,
+        canResolveWithLawyer,
+      },
+    };
+  }, [authToken, messages, type, user]);
 
-    setError(null);
-    const userMsg = { id: Date.now(), text, sender: 'user', timestamp: new Date() };
-    setMessages(prev => [...prev, userMsg]);
-    setInputValue('');
-    setIsLoading(true);
+  const handoffToAdmin = useCallback(async ({ firstMessage }) => {
+    if (!user) {
+      setHandoffError("Mutaxassisga ulash uchun avval tizimga kiring.");
+      return;
+    }
+
+    setHandoffLoading(true);
+    setHandoffError('');
 
     try {
-      const reply = await fetchBotResponse(text);
+      const conv = await ensureSupportConversation();
+      const text = firstMessage?.trim();
+
+      if (text) {
+        await sendSupportMessage({
+          conversationId: conv.id,
+          text: `AI chatdan o'tkazildi:\n${text}`,
+          receiver: 'admin',
+        });
+      }
+
+      navigate('/chat/support');
+    } catch (err) {
+      setHandoffError(safeError(err, "Mutaxassisga ulashda xatolik yuz berdi"));
+    } finally {
+      setHandoffLoading(false);
+    }
+  }, [ensureSupportConversation, navigate, safeError, sendSupportMessage, user]);
+
+  const sendMessage = useCallback(async (rawText) => {
+    const text = String(rawText || '').trim();
+    if (!text) return;
+    if (type === 'document' && !freeDocumentRemaining) {
+      setHandoffError('Tekin limit tugadi. Davom ettirish uchun mutaxassis bilan bog\'laning yoki obuna faollashtiring.');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 3,
+          text: "Tekin hujjat limiti tugadi. Mutaxassis bilan bog'lanib davom ettirishingiz mumkin.",
+          sender: 'bot',
+          timestamp: new Date(),
+          isError: true,
+        },
+      ]);
+      return;
+    }
+
+    const userMsg = { id: Date.now(), text, sender: 'user', timestamp: new Date() };
+    setMessages(prev => [...prev, userMsg]);
+    setStickToBottom(true);
+    setInputValue('');
+    setIsLoading(true);
+    setHandoffError('');
+
+    try {
+      const result = await fetchBotResponse(text);
       const botMsg = {
         id: Date.now() + 1,
-        text: reply,
+        text: result.text,
         sender: 'bot',
         timestamp: new Date(),
+        meta: result.meta,
       };
       setMessages(prev => [...prev, botMsg]);
+      setLastAssistantMeta(result.meta);
+      if (type === 'document') {
+        markFreeDocumentUsed();
+      }
+
+      if ((type === 'ai' || type === 'document') && result.handoffToAdmin) {
+        await handoffToAdmin({
+          firstMessage: `Mijoz savoli: ${text}\n\nAI javobi: ${result.text}${result.meta?.escalationReason ? `\n\nO'tkazish sababi: ${result.meta.escalationReason}` : ''}`,
+        });
+      }
     } catch (err) {
       console.error('Chat xatosi:', err.message);
-      setError(err.message);
       // Xato xabarini chat ichiga qo'shamiz
       setMessages(prev => [
         ...prev,
@@ -124,9 +312,27 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
     } finally {
       setIsLoading(false);
     }
+  }, [fetchBotResponse, freeDocumentRemaining, handoffToAdmin, markFreeDocumentUsed, type]);
+
+  const handleSend = async () => {
+    if (isLoading) return;
+    await sendMessage(inputValue);
   };
 
-  const handleKeyPress = (e) => {
+  useEffect(() => {
+    if (bootstrapped) return;
+    const seed = String(initialUserPrompt || '').trim();
+    if (!seed) {
+      setBootstrapped(true);
+      return;
+    }
+    if (isLoading) return;
+
+    setBootstrapped(true);
+    sendMessage(seed);
+  }, [bootstrapped, initialUserPrompt, isLoading, sendMessage]);
+
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -202,6 +408,11 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
                   {isLoading ? 'Javob yozmoqda...' : subtitle}
                 </p>
               </div>
+              {quickCheckTitle && (
+                <p className="text-[11px] mt-1 text-blue-600 dark:text-blue-300 font-medium">
+                  Tez Legal Check: {quickCheckTitle}
+                </p>
+              )}
             </div>
           </div>
 
@@ -217,12 +428,22 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
             </Button>
           </div>
         </div>
+        <div className="px-4 md:px-6 pt-2">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 inline-flex items-center gap-1.5">
+            <Lock size={12} />
+            Suhbatlar 100% maxfiy va xavfsizlik standartlari bo'yicha himoyalangan.
+          </p>
+        </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 relative"
+        >
           <AnimatePresence>
             {messages.map((msg) => (
-              <motion.div
+              <MotionDiv
                 key={msg.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -256,18 +477,68 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
                         : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-bl-none'
                   }`}>
                     <p className="leading-relaxed text-[15px] whitespace-pre-wrap">{msg.text}</p>
+                    {msg.sender === 'bot' && !msg.isError && msg.meta && (
+                      <div className="mt-2.5 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {msg.meta.confidence !== null && (
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                                confidenceTone(msg.meta.confidence) === 'high'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
+                                  : confidenceTone(msg.meta.confidence) === 'medium'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800'
+                              }`}
+                            >
+                              Ishonchlilik: {msg.meta.confidence}%
+                            </span>
+                          )}
+                          {msg.meta.canResolveWithLawyer && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800">
+                              Murakkab holat
+                            </span>
+                          )}
+                        </div>
+                        {msg.meta.sources?.length ? (
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            <span className="font-semibold">Manbalar: </span>
+                            {msg.meta.sources.map((source) => (
+                              <span key={source.id} className="inline-flex mr-2 mb-1">
+                                {source.url ? (
+                                  <a
+                                    href={source.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="underline underline-offset-2 hover:text-blue-600 dark:hover:text-blue-300"
+                                  >
+                                    {source.title}
+                                  </a>
+                                ) : (
+                                  <span>{source.title}</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {msg.meta.escalationReason ? (
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            O‘tkazish sababi: {msg.meta.escalationReason}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
                     <span className={`text-[10px] mt-1.5 block font-medium opacity-70 ${msg.sender === 'user' ? 'text-blue-100 text-right' : 'text-slate-400'}`}>
                       {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>
-              </motion.div>
+              </MotionDiv>
             ))}
           </AnimatePresence>
 
           {/* Typing / Loading indicator */}
           {isLoading && (
-            <motion.div
+            <MotionDiv
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="flex justify-start"
@@ -288,10 +559,22 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </MotionDiv>
           )}
 
-          <div ref={messagesEndRef} />
+          {!stickToBottom && (
+            <button
+              type="button"
+              onClick={() => {
+                setStickToBottom(true);
+                scrollToBottom();
+              }}
+              className="sticky bottom-2 ml-auto mr-1 inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-md hover:shadow-lg"
+            >
+              Yangi xabar
+            </button>
+          )}
+
         </div>
 
         {/* Input */}
@@ -304,7 +587,7 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               placeholder={t('chat_interface.input_placeholder')}
               disabled={isLoading}
               className="flex-1 bg-transparent border-0 focus:ring-0 text-slate-800 dark:text-white placeholder:text-slate-400 resize-none py-3 max-h-32 min-h-[48px] disabled:opacity-50"
@@ -331,6 +614,44 @@ export default function ChatInterface({ title, subtitle, type = 'ai', initialMes
               </Button>
             </div>
           </div>
+          {(type === 'ai' || type === 'document') && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {type === 'document' && (
+                <span className={`text-xs px-2.5 py-1 rounded-lg border ${
+                  freeDocumentRemaining
+                    ? 'border-emerald-200 text-emerald-700 bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:bg-emerald-900/20'
+                    : 'border-amber-200 text-amber-700 bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:bg-amber-900/20'
+                }`}>
+                  {freeDocumentRemaining ? '1 ta hujjat tekin: faol' : 'Tekin hujjat limiti ishlatilgan'}
+                </span>
+              )}
+              {typeof lastAssistantMeta?.confidence === 'number' && lastAssistantMeta.confidence < 55 && (
+                <span className="text-xs px-2.5 py-1 rounded-lg border border-amber-200 text-amber-700 bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:bg-amber-900/20">
+                  Ishonch past, advokatga ulash tavsiya etiladi
+                </span>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={handoffLoading || isLoading}
+                onClick={() => handoffToAdmin({
+                  firstMessage: messages.length
+                    ? `Oxirgi murojaat: ${messages[messages.length - 1].text}`
+                    : '',
+                })}
+                className="text-xs py-2 h-auto"
+              >
+                {handoffLoading ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+                Mutaxassisga ulash
+              </Button>
+              {handoffError && (
+                <span className="text-xs text-red-500 dark:text-red-400 inline-flex items-center gap-1">
+                  <AlertCircle size={13} />
+                  {handoffError}
+                </span>
+              )}
+            </div>
+          )}
           <div className="text-center mt-2">
             <p className="text-xs text-slate-400">{t('chat_interface.ai_warning')}</p>
           </div>

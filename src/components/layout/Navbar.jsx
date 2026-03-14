@@ -6,6 +6,11 @@ import Button from '../ui/Button';
 import Logo from '../ui/Logo';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import flagUz from '../../assets/flags/uz.svg';
+import flagOz from '../../assets/flags/oz.svg';
+import flagRu from '../../assets/flags/ru.svg';
+import flagEn from '../../assets/flags/en.svg';
+const MotionDiv = motion.div;
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,6 +19,12 @@ export default function Navbar() {
   const { user } = useAuth();
   const { currentLanguage, changeLanguage, languages, t } = useLanguage();
   const isHome = location.pathname === '/';
+  const languageFlags = {
+    uz: flagUz,
+    oz: flagOz,
+    ru: flagRu,
+    en: flagEn
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -50,10 +61,6 @@ export default function Navbar() {
     { name: t('nav.about'), path: '/about' },
   ];
 
-  if (user && user.role === 'admin') {
-    navLinks.push({ name: 'Admin Panel', path: '/admin' });
-  }
-
   return (
     <nav 
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -88,10 +95,17 @@ export default function Navbar() {
             <div className="flex items-center gap-4">
               {/* Language Switcher - Styled Select */}
               <div className="relative group">
+                 <img
+                    src={languageFlags[currentLanguage] || flagUz}
+                    alt={`${currentLanguage} flag`}
+                    className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-4 rounded-[3px] object-cover pointer-events-none border ${
+                      isHome && !scrolled ? 'border-white/40' : 'border-slate-300 dark:border-slate-600'
+                    }`}
+                 />
                  <select 
                     value={currentLanguage}
                     onChange={(e) => changeLanguage(e.target.value)}
-                    className={`appearance-none bg-transparent font-medium text-sm focus:outline-none cursor-pointer py-2 pl-3 pr-8 border rounded-lg transition-colors ${
+                    className={`appearance-none bg-transparent font-medium text-sm focus:outline-none cursor-pointer py-2 pl-9 pr-8 border rounded-lg transition-colors ${
                         isHome && !scrolled 
                             ? 'text-white border-white/20 hover:bg-white/10' 
                             : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -99,7 +113,7 @@ export default function Navbar() {
                  >
                     {languages.map(lang => (
                         <option key={lang.code} value={lang.code} className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">
-                            {lang.flag} {lang.name}
+                            {lang.name}
                         </option>
                     ))}
                  </select>
@@ -138,10 +152,17 @@ export default function Navbar() {
           <div className="md:hidden flex items-center gap-4">
             {/* Mobile Language Switcher (Select) */}
             <div className="relative">
+              <img
+                src={languageFlags[currentLanguage] || flagUz}
+                alt={`${currentLanguage} flag`}
+                className={`absolute left-2 top-1/2 -translate-y-1/2 w-4 h-3 rounded-[2px] object-cover pointer-events-none border ${
+                  isHome && !scrolled ? 'border-white/40' : 'border-slate-300 dark:border-slate-600'
+                }`}
+              />
               <select 
                   value={currentLanguage}
                   onChange={(e) => changeLanguage(e.target.value)}
-                  className={`appearance-none bg-transparent font-bold text-xs uppercase focus:outline-none cursor-pointer py-1 pl-2 pr-6 border rounded-md ${
+                  className={`appearance-none bg-transparent font-bold text-xs uppercase focus:outline-none cursor-pointer py-1 pl-7 pr-6 border rounded-md ${
                       isHome && !scrolled 
                           ? 'text-white border-white/20' 
                           : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -168,7 +189,7 @@ export default function Navbar() {
       {/* Mobile Menu */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
+          <MotionDiv
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
@@ -208,7 +229,7 @@ export default function Navbar() {
                 )}
               </div>
             </div>
-          </motion.div>
+          </MotionDiv>
         )}
       </AnimatePresence>
     </nav>

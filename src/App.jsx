@@ -13,8 +13,9 @@ import Contact from './pages/Contact';
 import ChatPage from './pages/Chat';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
-import AdminDashboard from './pages/AdminDashboard';
 import ConstitutionPage from './pages/ConstitutionPage';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -25,56 +26,56 @@ function App() {
     <AuthProvider>
       <ThemeProvider>
         <LanguageProvider>
-        <Router>
-          <ScrollToTop />
-          <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-300">
-            <Navbar />
-            <main className="flex-grow">
-              <Routes>
-                {/* Ochiq sahifalar */}
-                <Route path="/" element={<Home />} />
-                <Route path="/lawyers" element={<Lawyers />} />
-                <Route path="/news" element={<NewsPage />} />
-                <Route path="/news/:id" element={<NewsPage />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/constitution" element={<ConstitutionPage />} />
-                <Route path="/chat/:type?/:id?" element={<ChatPage />} />
-
-                {/* Auth sahifasi — kirgan bo'lsa dashboard ga o'tadi */}
-                <Route path="/auth" element={<Auth />} />
-
-                {/* Himoyalangan sahifalar — faqat login bo'lganlar uchun */}
-                <Route
-                  path="/dashboard"
-                  element={
-                    <PrivateRoute>
-                      <Dashboard />
-                    </PrivateRoute>
-                  }
-                />
-                
-                {/* Admin paneli */}
-                <Route
-                  path="/admin"
-                  element={
-                    <PrivateRoute>
-                      <AdminDashboard />
-                    </PrivateRoute>
-                  }
-                />
-
-                {/* Noma'lum URL → bosh sahifa */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </main>
-            <Footer />
-          </div>
-          <ThemeSwitcher />
-        </Router>
+          <Router>
+            <ScrollToTop />
+            <AppContent />
+          </Router>
         </LanguageProvider>
       </ThemeProvider>
     </AuthProvider>
+  );
+}
+
+function AppContent() {
+  return (
+    <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-300">
+      <Navbar />
+
+      <main className="flex-grow">
+        <Routes>
+          {/* Ochiq sahifalar */}
+          <Route path="/" element={<Home />} />
+          <Route path="/lawyers" element={<Lawyers />} />
+          <Route path="/news" element={<NewsPage />} />
+          <Route path="/news/:id" element={<NewsPage />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/constitution" element={<ConstitutionPage />} />
+          <Route path="/chat/:type?/:id?" element={<ChatPage />} />
+
+          {/* Auth */}
+          <Route path="/auth" element={<Auth />} />
+
+          {/* User dashboard */}
+          <Route
+            path="/dashboard"
+            element={(
+              <PrivateRoute>
+                <Dashboard />
+              </PrivateRoute>
+            )}
+          />
+
+          {/* Noma'lum URL */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+
+      <Footer />
+      <ThemeSwitcher position="bottom-right" />
+    </div>
   );
 }
 

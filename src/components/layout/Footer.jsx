@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Scale, Mail, Phone, MapPin, Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
+import { Mail, Phone, MapPin, Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import Logo from '../ui/Logo';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -14,11 +15,9 @@ export default function Footer() {
           {/* Brand Info */}
           <div className="space-y-6">
             <Link to="/" className="flex items-center gap-2 text-white group">
-              <img 
-                src="/logo.jpg" 
-                alt="Advokat Logo" 
-                className="w-10 h-10 rounded-xl object-cover shadow-lg group-hover:scale-110 transition-transform"
-              />
+              <span className="w-10 h-10 rounded-xl bg-white/10 inline-flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <Logo className="w-7 h-7" color="text-white" />
+              </span>
               <span className="text-2xl font-serif font-bold">LegalLink</span>
             </Link>
             <p className="text-slate-400 leading-relaxed">

@@ -1,10 +1,11 @@
 import React from 'react';
 import { Sun, Moon, Monitor } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
+import ThemeContext from '../../context/ThemeContext';
 import { motion, AnimatePresence } from 'framer-motion';
+const MotionDiv = motion.div;
 
-const ThemeSwitcher = () => {
-    const { theme, setTheme } = useTheme();
+const ThemeSwitcher = ({ position = 'bottom-right' }) => {
+    const { theme, setTheme } = React.useContext(ThemeContext);
     const [isOpen, setIsOpen] = React.useState(false);
 
     const toggleOpen = () => setIsOpen(!isOpen);
@@ -15,11 +16,15 @@ const ThemeSwitcher = () => {
         { value: 'system', icon: Monitor, label: 'System' },
     ];
 
+    const positionClass = position === 'top-right'
+        ? 'top-4 right-4 md:top-6 md:right-6'
+        : 'bottom-4 right-4 md:bottom-6 md:right-6';
+
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        <div className={`fixed ${positionClass} z-[9999] flex flex-col items-end gap-2`}>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div
+                    <MotionDiv
                         initial={{ opacity: 0, y: 20, scale: 0.8 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -43,7 +48,7 @@ const ThemeSwitcher = () => {
                                 <span className="text-sm font-medium capitalize">{option.label}</span>
                             </button>
                         ))}
-                    </motion.div>
+                    </MotionDiv>
                 )}
             </AnimatePresence>
 
@@ -51,7 +56,7 @@ const ThemeSwitcher = () => {
                 onClick={toggleOpen}
                 className={`
                     p-4 rounded-full shadow-2xl transition-all duration-300
-                    ${isOpen ? 'bg-blue-600 rotate-90 scale-110' : 'bg-white dark:bg-slate-800 hover:scale-105 active:scale-95'}
+                    ${isOpen ? 'bg-blue-600 rotate-90 scale-110' : 'bg-white dark:bg-slate-800 hover:scale-105 active:scale-95 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-600'}
                     border border-slate-200 dark:border-slate-700
                 `}
             >

@@ -1,213 +1,818 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { API_BASE_URL, ENABLE_LOCAL_FALLBACK, buildApiUrl } from '../config/appConfig';
 
 const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
 
-const API = 'https://advokat-1.onrender.com';
+const TOKEN_KEY = 'advokat_auth_token';
+const USER_KEY = 'advokat_user';
+const LOCAL_USERS_KEY = 'advokat_local_users_v1';
+const SUPPORT_CONVERSATIONS_KEY = 'advokat_support_conversations_v1';
+const SUPPORT_MESSAGES_KEY = 'advokat_support_messages_v1';
 
-// Token va user ni localStorage dan doimiy o'qish
-const loadToken = () => localStorage.getItem('advokat_auth_token') || null;
-const loadUser  = () => {
-  try { return JSON.parse(localStorage.getItem('advokat_user')) || null; }
-  catch { return null; }
+const readJSON = (key, fallback = null) => {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const writeJSON = (key, value) => {
+  localStorage.setItem(key, JSON.stringify(value));
+};
+
+const normalizeUser = (rawUser = {}) => {
+  const email = rawUser.email || rawUser.username || '';
+  const nameFromEmail = email.includes('@') ? email.split('@')[0] : 'Foydalanuvchi';
+
+  return {
+    ...rawUser,
+    id: rawUser.id || rawUser.userId || rawUser._id || email || `user_${Date.now()}`,
+    email,
+    name: rawUser.name || rawUser.fullName || rawUser.username || nameFromEmail,
+    role: rawUser.role || (rawUser.isAdmin ? 'admin' : 'user'),
+    created_at: rawUser.created_at || rawUser.createdAt || new Date().toISOString(),
+  };
+};
+
+const getToken = () => localStorage.getItem(TOKEN_KEY) || null;
+const getUser = () => {
+  const raw = readJSON(USER_KEY, null);
+  return raw ? normalizeUser(raw) : null;
 };
 
 const saveSession = (token, user) => {
-  if (token) localStorage.setItem('advokat_auth_token', token);
-  if (user)  localStorage.setItem('advokat_user', JSON.stringify(user));
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  if (user) localStorage.setItem(USER_KEY, JSON.stringify(normalizeUser(user)));
 };
 
 const clearSession = () => {
-  localStorage.removeItem('advokat_auth_token');
-  localStorage.removeItem('advokat_user');
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+};
+
+const safeError = (err, fallback) => err?.message || fallback;
+const USE_LOCAL_FALLBACK = ENABLE_LOCAL_FALLBACK;
+
+async function apiRequest(path, { method = 'GET', body, token, headers = {} } = {}) {
+  const response = await fetch(buildApiUrl(path), {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(data?.message || data?.error || `Server xatosi: ${response.status}`);
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data;
+}
+
+async function apiRequestAny(paths, options) {
+  let lastError = null;
+
+  for (const path of paths) {
+    try {
+      return await apiRequest(path, options);
+    } catch (err) {
+      lastError = err;
+      if (err?.status === 404 || err?.status === 405) continue;
+      throw err;
+    }
+  }
+
+  throw lastError || new Error('Endpoint topilmadi');
+}
+
+const loadLocalUsers = () => readJSON(LOCAL_USERS_KEY, []);
+const saveLocalUsers = (users) => writeJSON(LOCAL_USERS_KEY, users);
+
+const loadConversations = () => readJSON(SUPPORT_CONVERSATIONS_KEY, []);
+const saveConversations = (conversations) => writeJSON(SUPPORT_CONVERSATIONS_KEY, conversations);
+
+const loadMessages = () => readJSON(SUPPORT_MESSAGES_KEY, []);
+const saveMessages = (messages) => writeJSON(SUPPORT_MESSAGES_KEY, messages);
+
+const toSorted = (items, key = 'updatedAt') => {
+  return [...items].sort((a, b) => new Date(b[key] || 0).getTime() - new Date(a[key] || 0).getTime());
+};
+
+const normalizeConversation = (conv = {}) => ({
+  id: conv.id || conv._id || `conv_${Date.now()}`,
+  clientId: conv.clientId || conv.userId || conv.customerId || conv.client?.id,
+  clientEmail: conv.clientEmail || conv.client?.email || '',
+  clientName: conv.clientName || conv.client?.name || conv.client?.fullName || 'Mijoz',
+  adminId: conv.adminId || conv.operatorId || null,
+  subject: conv.subject || "Yuridik masala bo'yicha murojaat",
+  status: conv.status || 'open',
+  lawyerId: conv.lawyerId || conv.meta?.lawyerId || null,
+  unreadForAdmin: conv.unreadForAdmin || 0,
+  unreadForClient: conv.unreadForClient || 0,
+  createdAt: conv.createdAt || conv.created_at || new Date().toISOString(),
+  updatedAt: conv.updatedAt || conv.updated_at || new Date().toISOString(),
+  lastMessage: conv.lastMessage || conv.preview || '',
+  participantA: conv.participantA || null,
+  participantB: conv.participantB || null,
+  peerId: conv.peerId || null,
+});
+
+const normalizeMessage = (msg = {}) => ({
+  id: msg.id || msg._id || `msg_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+  conversationId: msg.conversationId || msg.chatId || msg.roomId,
+  senderId: msg.senderId || msg.userId || msg.sender?.id,
+  senderRole: msg.senderRole || msg.sender?.role || 'user',
+  senderName: msg.senderName || msg.sender?.name || msg.sender?.email || 'Foydalanuvchi',
+  text: msg.text || msg.message || msg.content || '',
+  createdAt: msg.createdAt || msg.created_at || new Date().toISOString(),
+});
+
+const CHAT_ENDPOINT = '/chats';
+
+const normalizeParty = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 'admin';
+  const lower = raw.toLowerCase();
+
+  if (lower === 'admin' || lower === 'system' || lower.startsWith('admin@') || lower.includes('admin')) {
+    return 'admin';
+  }
+
+  return raw;
+};
+
+const getCurrentIdentity = (currentUser) => {
+  if (!currentUser) return '';
+  if (currentUser.role === 'admin') return 'admin';
+  return normalizeParty(currentUser.email || currentUser.id);
+};
+
+const makeConversationId = (a, b) => {
+  const [left, right] = [normalizeParty(a), normalizeParty(b)].sort();
+  return `pair|${left}|${right}`;
+};
+
+const parseConversationId = (value) => {
+  if (!String(value || '').startsWith('pair|')) return null;
+  const parts = String(value).split('|');
+  if (parts.length !== 3) return null;
+  return { a: parts[1], b: parts[2] };
+};
+
+const normalizeChatRow = (row = {}) => {
+  const sender = normalizeParty(row.sender || row.senderId || row.senderEmail || row.sender?.email || row.sender?.id);
+  const receiver = normalizeParty(row.receiver ?? row.receiverId ?? row.receiverEmail ?? row.receiver?.email ?? row.receiver?.id);
+
+  return {
+    id: row.id || row._id || `chat_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+    sender,
+    receiver,
+    message: row.message || row.text || row.content || '',
+    type: row.type || 'support',
+    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+  };
+};
+
+const mapChatRows = (data) => {
+  const rawList = Array.isArray(data) ? data : (data.chats || data.data || data.items || []);
+  return Array.isArray(rawList) ? rawList.map(normalizeChatRow) : [];
+};
+
+const buildConversationsFromChats = (rows, currentUser) => {
+  const currentIdentity = getCurrentIdentity(currentUser);
+  const isAdmin = currentUser?.role === 'admin';
+
+  const scopedRows = rows.filter((row) => {
+    if (isAdmin) return true;
+    return row.sender === currentIdentity || row.receiver === currentIdentity;
+  });
+
+  const grouped = new Map();
+
+  scopedRows.forEach((row) => {
+    const conversationId = makeConversationId(row.sender, row.receiver);
+
+    if (!grouped.has(conversationId)) {
+      grouped.set(conversationId, []);
+    }
+
+    grouped.get(conversationId).push(row);
+  });
+
+  const conversations = Array.from(grouped.entries()).map(([id, messages]) => {
+    const sortedMessages = [...messages].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    const first = sortedMessages[0];
+    const last = sortedMessages[sortedMessages.length - 1];
+    const pair = parseConversationId(id) || { a: first.sender, b: first.receiver };
+    const peerId = pair.a === currentIdentity ? pair.b : pair.a;
+
+    const clientEmail = isAdmin
+      ? (peerId === 'admin' ? pair.a : peerId)
+      : currentUser?.email || '';
+
+    const defaultName = clientEmail.includes('@')
+      ? clientEmail.split('@')[0]
+      : (peerId === 'admin' ? 'Platforma admini' : `Foydalanuvchi ${peerId}`);
+
+    return normalizeConversation({
+      id,
+      clientId: clientEmail || peerId,
+      clientEmail,
+      clientName: isAdmin ? defaultName : (currentUser?.name || defaultName),
+      subject: peerId === 'admin' ? 'Platforma mutaxassisi bilan chat' : `ID ${peerId} bo'yicha chat`,
+      status: 'open',
+      lawyerId: peerId !== 'admin' && !String(peerId).includes('@') ? peerId : null,
+      createdAt: first.createdAt,
+      updatedAt: last.createdAt,
+      lastMessage: last.message,
+      participantA: pair.a,
+      participantB: pair.b,
+      peerId,
+    });
+  });
+
+  return toSorted(conversations, 'updatedAt');
+};
+
+const seedLocalAdmin = () => {
+  const users = loadLocalUsers();
+  const hasAdmin = users.some((u) => u.role === 'admin');
+
+  if (!hasAdmin) {
+    users.push({
+      id: 'local_admin_1',
+      name: 'Bosh Admin',
+      email: 'admin@legallink.uz',
+      password: 'admin12345',
+      role: 'admin',
+      created_at: new Date().toISOString(),
+      source: 'local',
+    });
+    saveLocalUsers(users);
+  }
+};
+
+const rememberUserForLocalFeatures = (user, password = null) => {
+  if (!user?.email) return;
+
+  const users = loadLocalUsers();
+  const idx = users.findIndex((u) => u.email?.toLowerCase() === user.email.toLowerCase());
+
+  if (idx >= 0) {
+    users[idx] = {
+      ...users[idx],
+      ...user,
+      password: password || users[idx].password,
+    };
+  } else {
+    users.push({
+      ...user,
+      password,
+      source: 'api',
+    });
+  }
+
+  saveLocalUsers(users);
+};
+
+const localRegister = (email, password) => {
+  const users = loadLocalUsers();
+  const hasUser = users.some((u) => u.email?.toLowerCase() === email.toLowerCase());
+
+  if (hasUser) {
+    throw new Error("Bu email allaqachon ro'yxatdan o'tgan");
+  }
+
+  const user = normalizeUser({
+    id: `local_user_${Date.now()}`,
+    email,
+    name: email.split('@')[0],
+    role: 'user',
+    created_at: new Date().toISOString(),
+    source: 'local',
+  });
+
+  users.push({ ...user, password });
+  saveLocalUsers(users);
+
+  const token = `local_token_${user.id}_${Date.now()}`;
+  return { token, user };
+};
+
+const localLogin = (email, password) => {
+  const users = loadLocalUsers();
+  const matched = users.find(
+    (u) => u.email?.toLowerCase() === email.toLowerCase() && u.password === password
+  );
+
+  if (!matched) {
+    throw new Error("Email yoki parol noto'g'ri");
+  }
+
+  const user = normalizeUser(matched);
+  const token = `local_token_${user.id}_${Date.now()}`;
+  return { token, user };
+};
+
+const ensureLocalConversation = ({ currentUser, lawyerId = null }) => {
+  const conversations = loadConversations();
+
+  const existing = conversations.find(
+    (conv) => String(conv.clientId) === String(currentUser.id) && String(conv.lawyerId || '') === String(lawyerId || '')
+  );
+
+  if (existing) return normalizeConversation(existing);
+
+  const newConversation = normalizeConversation({
+    id: `conv_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+    clientId: currentUser.id,
+    clientEmail: currentUser.email,
+    clientName: currentUser.name,
+    subject: lawyerId ? `Advokat #${lawyerId} bo'yicha murojaat` : 'Platforma mutaxassisi bilan chat',
+    status: 'open',
+    lawyerId: lawyerId || null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    unreadForAdmin: 1,
+  });
+
+  conversations.push(newConversation);
+  saveConversations(conversations);
+
+  const messages = loadMessages();
+  messages.push(
+    normalizeMessage({
+      id: `msg_${Date.now()}_welcome`,
+      conversationId: newConversation.id,
+      senderId: 'system',
+      senderRole: 'admin',
+      senderName: 'Platforma admini',
+      text: 'Assalomu alaykum. Murojaatingiz qabul qilindi. Tez orada sizga yordam beramiz.',
+      createdAt: new Date().toISOString(),
+    })
+  );
+  saveMessages(messages);
+
+  return newConversation;
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user,      setUser]      = useState(loadUser);
-  const [authToken, setAuthToken] = useState(loadToken);
+  const [user, setUser] = useState(getUser);
+  const [authToken, setAuthToken] = useState(getToken);
 
-  // Tab / refresh bo'lganda sinxronlash
+  useEffect(() => {
+    if (USE_LOCAL_FALLBACK) {
+      seedLocalAdmin();
+    }
+  }, []);
+
   useEffect(() => {
     const sync = () => {
-      setAuthToken(loadToken());
-      setUser(loadUser());
+      setAuthToken(getToken());
+      setUser(getUser());
     };
+
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
   }, []);
 
-  // ─── 1. LOGIN ─────────────────────────────────────────────────────────────
-  // Backend: POST /auth/login → { token, user } yoki { success, token, user }
-  const login = async (email, password) => {
-    const res = await fetch(`${API}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new Error(
-        data.message || data.error ||
-        (res.status === 401 ? 'Email yoki parol noto\'g\'ri' :
-         res.status === 404 ? 'Foydalanuvchi topilmadi' :
-         `Server xatosi: ${res.status}`)
-      );
-    }
-
-    const token = data.token || data.accessToken;
-    const userData = data.user || data;
-
-    if (!token) throw new Error('Token server tomonidan qaytarilmadi');
-
-    saveSession(token, userData);
+  const setSession = (token, userData, password = null) => {
+    const normalized = normalizeUser(userData);
+    saveSession(token, normalized);
     setAuthToken(token);
-    setUser(userData);
-    return { token, user: userData };
+    setUser(normalized);
+    if (USE_LOCAL_FALLBACK) {
+      rememberUserForLocalFeatures(normalized, password);
+    }
+    return { token, user: normalized };
   };
 
-  // ─── 2. SEND CODE (Register uchun OTP) ───────────────────────────────────
-  // Backend: POST /auth/send-code → { token } (10 xonali temp token)
+  const login = async (email, password) => {
+    try {
+      const data = await apiRequest('/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      });
+
+      const token = data.token || data.accessToken;
+      const userData = data.user || data.data?.user || data;
+
+      if (!token) {
+        throw new Error('Token server tomonidan qaytarilmadi');
+      }
+
+      return setSession(token, userData, password);
+    } catch (err) {
+      if (!USE_LOCAL_FALLBACK) throw err;
+      const shouldUseLocal = !err.status || err.status >= 500 || [400, 401, 404].includes(err.status);
+      if (!shouldUseLocal) throw err;
+
+      const local = localLogin(email, password);
+      return setSession(local.token, local.user, password);
+    }
+  };
+
+  const register = async (email, password) => {
+    try {
+      const data = await apiRequestAny(['/auth/register', '/users/register'], {
+        method: 'POST',
+        body: { email, password },
+      });
+
+      const token = data.token || data.accessToken;
+      const userData = data.user || data.data?.user;
+
+      if (token && userData) {
+        const session = setSession(token, userData, password);
+        return { ...session, requiresVerification: false };
+      }
+
+      if (data.requiresVerification || data.success || data.tempToken) {
+        return { requiresVerification: true };
+      }
+
+      if (!USE_LOCAL_FALLBACK) {
+        throw new Error('Backend register javobi noto‘g‘ri formatda qaytdi');
+      }
+
+      const local = localRegister(email, password);
+      const session = setSession(local.token, local.user, password);
+      return { ...session, requiresVerification: false, localOnly: true };
+    } catch (err) {
+      // Agar backend email+kod flow ishlatsa
+      if (err?.status === 409) throw err;
+
+      if (!USE_LOCAL_FALLBACK) {
+        try {
+          await sendCode(email, password);
+          return { requiresVerification: true };
+        } catch {
+          throw err;
+        }
+      }
+
+      try {
+        await sendCode(email, password);
+        return { requiresVerification: true };
+      } catch {
+        const local = localRegister(email, password);
+        const session = setSession(local.token, local.user, password);
+        return { ...session, requiresVerification: false, localOnly: true };
+      }
+    }
+  };
+
   const sendCode = async (email, password) => {
-    const res = await fetch(`${API}/auth/send-code`, {
+    const data = await apiRequest('/auth/send-code', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: { email, password },
     });
 
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new Error(
-        data.message || data.error ||
-        (res.status === 409 ? 'Bu email allaqachon ro\'yxatdan o\'tgan' :
-         `Kod yuborishda xato: ${res.status}`)
-      );
-    }
-
-    // Backend 10 xonali tokenni qaytaradi — saqlash (verify uchun kerak)
     if (data.token) {
+      localStorage.setItem(TOKEN_KEY, data.token);
       setAuthToken(data.token);
-      localStorage.setItem('advokat_auth_token', data.token);
     }
 
     return data;
   };
 
-  // ─── 3. VERIFY CODE (OTP tasdiqlash) ─────────────────────────────────────
-  // Backend: POST /auth/verify-code → { token, user }
   const verifyCode = async (email, code) => {
-    const currentToken = loadToken(); // yangi token bo'lishi mumkin
+    const token = getToken();
 
-    if (!currentToken) {
-      throw new Error('Token topilmadi. Iltimos, qayta urinib ko\'ring');
+    if (!token) {
+      throw new Error("Token topilmadi. Iltimos, qayta urinib ko'ring");
     }
 
-    const res = await fetch(`${API}/auth/verify-code`, {
+    const data = await apiRequest('/auth/verify-code', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ authToken: currentToken, code }),
+      body: {
+        email,
+        authToken: token,
+        code,
+      },
     });
 
-    const data = await res.json().catch(() => ({}));
+    const finalToken = data.token || data.accessToken || token;
+    const userData = data.user || data.data?.user || data;
 
-    if (!res.ok) {
-      throw new Error(
-        data.message || data.error ||
-        (res.status === 400 ? 'Tasdiqlash kodi noto\'g\'ri yoki muddati o\'tgan' :
-         `Tasdiqlashda xato: ${res.status}`)
-      );
-    }
-
-    const finalToken = data.token || data.accessToken || currentToken;
-    const userData   = data.user  || data;
-
-    saveSession(finalToken, userData);
-    setAuthToken(finalToken);
-    setUser(userData);
-    return { token: finalToken, user: userData };
+    return setSession(finalToken, userData);
   };
 
-  // ─── 4. LOGOUT ────────────────────────────────────────────────────────────
   const logout = () => {
     clearSession();
     setAuthToken(null);
     setUser(null);
   };
 
-  // ─── 5. ADMIN TOKEN SAQLASH ───────────────────────────────────────────────
-  // Admin paneldan token berilganda uni saqlash uchun
   const setManualToken = (token, userData = null) => {
-    localStorage.setItem('advokat_auth_token', token);
+    localStorage.setItem(TOKEN_KEY, token);
     setAuthToken(token);
     if (userData) {
-      saveSession(token, userData);
-      setUser(userData);
+      const normalized = normalizeUser(userData);
+      localStorage.setItem(USER_KEY, JSON.stringify(normalized));
+      setUser(normalized);
+      if (USE_LOCAL_FALLBACK) {
+        rememberUserForLocalFeatures(normalized);
+      }
     }
   };
 
-  // ─── 6. CREATE ADMIN ──────────────────────────────────────────────────────
   const createAdmin = async (email, password) => {
-    const res = await fetch(`${API}/users/create_admin`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Agar backend avtorizatsiya so'rasa:
-        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-      },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new Error(data.message || data.error || `Admin yaratishda xato: ${res.status}`);
+    if (user?.role !== 'admin') {
+      throw new Error('Faqat admin yangi admin yarata oladi');
     }
 
-    return data;
+    try {
+      const data = await apiRequest('/users/create_admin', {
+        method: 'POST',
+        token: authToken,
+        body: { email, password },
+      });
+      return data;
+    } catch {
+      if (!USE_LOCAL_FALLBACK) {
+        throw new Error('Admin yaratish API orqali bajarilmadi');
+      }
+
+      let fallback;
+      try {
+        fallback = localRegister(email, password);
+      } catch (localErr) {
+        if (!String(localErr?.message || '').includes("allaqachon ro'yxatdan o'tgan")) {
+          throw localErr;
+        }
+
+        const users = loadLocalUsers();
+        const existing = users.find((item) => item.email?.toLowerCase() === email.toLowerCase());
+        if (!existing) throw localErr;
+
+        existing.role = 'admin';
+        saveLocalUsers(users);
+        return { success: true, user: normalizeUser(existing), fallback: true };
+      }
+
+      const users = loadLocalUsers();
+      const idx = users.findIndex((u) => String(u.id) === String(fallback.user.id));
+
+      if (idx >= 0) {
+        users[idx] = { ...users[idx], role: 'admin' };
+      }
+
+      saveLocalUsers(users);
+      return { success: true, user: { ...fallback.user, role: 'admin' }, fallback: true };
+    }
   };
 
-  // ─── 7. GET ALL USERS (Faqat adminlar ko'ra oladi) ────────────────────────
   const getAllUsers = async () => {
-    if (!authToken) throw new Error('Token topilmadi. Avval admin sifatida kiring.');
-
-    const res = await fetch(`${API}/users/`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new Error(data.message || data.error || `Foydalanuvchilarni olishda xato: ${res.status}`);
+    if (!authToken) {
+      throw new Error('Token topilmadi. Avval admin sifatida kiring.');
     }
 
-    return data;
+    try {
+      const data = await apiRequest('/users/', {
+        method: 'GET',
+        token: authToken,
+      });
+
+      const rawList = Array.isArray(data)
+        ? data
+        : data.users || data.data || data.items || [];
+
+      const users = rawList.map(normalizeUser);
+      if (USE_LOCAL_FALLBACK) {
+        users.forEach((u) => rememberUserForLocalFeatures(u));
+      }
+      return users;
+    } catch (err) {
+      if (!USE_LOCAL_FALLBACK) throw err;
+      return loadLocalUsers().map((u) => normalizeUser(u));
+    }
+  };
+
+  const listSupportConversations = async () => {
+    if (!user) throw new Error('Avval tizimga kiring');
+
+    try {
+      const data = await apiRequest(CHAT_ENDPOINT, {
+        method: 'GET',
+        token: authToken,
+      });
+
+      const rows = mapChatRows(data);
+      return buildConversationsFromChats(rows, user);
+    } catch (err) {
+      if (!USE_LOCAL_FALLBACK) throw err;
+      const all = loadConversations().map(normalizeConversation);
+      const filtered = user.role === 'admin'
+        ? all
+        : all.filter((conv) => String(conv.clientId) === String(user.id));
+
+      return toSorted(filtered);
+    }
+  };
+
+  const ensureSupportConversation = async ({ lawyerId = null } = {}) => {
+    if (!user) throw new Error('Avval tizimga kiring');
+    if (user.role === 'admin') throw new Error('Admin uchun bu amal kerak emas');
+
+    if (USE_LOCAL_FALLBACK) {
+      return ensureLocalConversation({ currentUser: user, lawyerId });
+    }
+
+    const currentIdentity = getCurrentIdentity(user);
+    const peerId = lawyerId ? normalizeParty(lawyerId) : 'admin';
+    const [participantA, participantB] = [currentIdentity, peerId].sort();
+
+    return normalizeConversation({
+      id: makeConversationId(currentIdentity, peerId),
+      clientId: user.id,
+      clientEmail: user.email || '',
+      clientName: user.name || user.email || 'Mijoz',
+      subject: peerId === 'admin' ? 'Platforma mutaxassisi bilan chat' : `ID ${peerId} bo'yicha murojaat`,
+      status: 'open',
+      lawyerId: peerId !== 'admin' ? peerId : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      participantA,
+      participantB,
+      peerId,
+    });
+  };
+
+  const getSupportMessages = async (conversationId) => {
+    if (!conversationId) return [];
+
+    try {
+      const data = await apiRequest(CHAT_ENDPOINT, { method: 'GET', token: authToken });
+      const rows = mapChatRows(data);
+      const filtered = rows
+        .filter((row) => makeConversationId(row.sender, row.receiver) === String(conversationId))
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+      return filtered.map((row) =>
+        normalizeMessage({
+          id: row.id,
+          conversationId,
+          senderId: row.sender,
+          senderRole: row.sender === 'admin' ? 'admin' : 'user',
+          senderName: row.sender === 'admin' ? 'Platforma admini' : row.sender,
+          text: row.message,
+          createdAt: row.createdAt,
+        })
+      );
+    } catch (err) {
+      if (!USE_LOCAL_FALLBACK) throw err;
+      const local = loadMessages()
+        .map(normalizeMessage)
+        .filter((m) => String(m.conversationId) === String(conversationId));
+
+      return local.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    }
+  };
+
+  const sendSupportMessage = async ({ conversationId, text, receiver = null }) => {
+    if (!user) throw new Error('Avval tizimga kiring');
+    if (!conversationId) throw new Error('Suhbat tanlanmagan');
+    if (!text?.trim()) throw new Error('Xabar bo‘sh bo‘lishi mumkin emas');
+
+    const trimmed = text.trim();
+    const currentIdentity = getCurrentIdentity(user);
+    const pair = parseConversationId(conversationId);
+    const peerFromConversation = pair
+      ? (pair.a === currentIdentity ? pair.b : pair.a)
+      : null;
+    const peer = normalizeParty(receiver || peerFromConversation || 'admin');
+
+    const payload = {
+      message: trimmed,
+      type: 'support',
+      receiver: peer === 'admin' ? null : peer,
+    };
+
+    try {
+      const data = await apiRequest(CHAT_ENDPOINT, {
+        method: 'POST',
+        token: authToken,
+        body: payload,
+      });
+      const chat = normalizeChatRow(data.chat || data.data || data);
+      const actualConversationId = makeConversationId(chat.sender, chat.receiver);
+
+      return normalizeMessage({
+        id: chat.id,
+        conversationId: actualConversationId || conversationId,
+        senderId: chat.sender,
+        senderRole: chat.sender === 'admin' ? 'admin' : user.role,
+        senderName: chat.sender === 'admin' ? 'Platforma admini' : (user.name || user.email || chat.sender),
+        text: chat.message || trimmed,
+        createdAt: chat.createdAt,
+      });
+    } catch (err) {
+      if (!USE_LOCAL_FALLBACK) throw err;
+      const conversations = loadConversations();
+      const convIndex = conversations.findIndex((c) => String(c.id) === String(conversationId));
+
+      if (convIndex < 0) throw new Error('Suhbat topilmadi');
+
+      const message = normalizeMessage({
+        id: `msg_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+        conversationId,
+        senderId: user.id,
+        senderRole: user.role,
+        senderName: user.name || user.email,
+        text: text.trim(),
+        createdAt: new Date().toISOString(),
+      });
+
+      const messages = loadMessages();
+      messages.push(message);
+      saveMessages(messages);
+
+      const current = normalizeConversation(conversations[convIndex]);
+      const updated = {
+        ...current,
+        lastMessage: message.text,
+        updatedAt: message.createdAt,
+        unreadForAdmin: user.role === 'admin' ? 0 : Number(current.unreadForAdmin || 0) + 1,
+        unreadForClient: user.role === 'admin' ? Number(current.unreadForClient || 0) + 1 : 0,
+      };
+
+      conversations[convIndex] = updated;
+      saveConversations(conversations);
+
+      return message;
+    }
+  };
+
+  const setSupportConversationStatus = async (conversationId, status) => {
+    if (!user || user.role !== 'admin') {
+      throw new Error('Faqat admin statusni o‘zgartira oladi');
+    }
+
+    // Yangi backend chat modelida status endpoint yo'q.
+    if (!USE_LOCAL_FALLBACK) {
+      return normalizeConversation({
+        id: conversationId,
+        status,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    const conversations = loadConversations();
+    const idx = conversations.findIndex((c) => String(c.id) === String(conversationId));
+
+    if (idx < 0) throw new Error('Suhbat topilmadi');
+
+    conversations[idx] = {
+      ...normalizeConversation(conversations[idx]),
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveConversations(conversations);
+    return conversations[idx];
   };
 
   const isAuthenticated = Boolean(authToken && user);
+  const isAdmin = user?.role === 'admin';
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        authToken,
-        isAuthenticated,
-        login,
-        sendCode,
-        verifyCode,
-        logout,
-        setManualToken,
-        createAdmin,
-        getAllUsers,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = {
+    user,
+    authToken,
+    isAuthenticated,
+    isAdmin,
+    apiBase: API_BASE_URL,
+    localFallbackEnabled: USE_LOCAL_FALLBACK,
+    supportStatusEnabled: USE_LOCAL_FALLBACK,
+    login,
+    register,
+    sendCode,
+    verifyCode,
+    logout,
+    setManualToken,
+    createAdmin,
+    getAllUsers,
+    listSupportConversations,
+    ensureSupportConversation,
+    getSupportMessages,
+    sendSupportMessage,
+    setSupportConversationStatus,
+    safeError,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

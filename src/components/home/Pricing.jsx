@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
+const MotionDiv = motion.div;
 
 export default function Pricing() {
   const [currency, setCurrency] = useState('uzs'); // 'uzs' yoki 'usd'
@@ -32,7 +33,8 @@ export default function Pricing() {
       features: t('pricing.document.features') || [],
       cta: t('pricing.document.cta'),
       link: '/chat/document',
-      popular: false
+      popular: false,
+      freeNote: '1 ta hujjat tekin'
     }
   ];
 
@@ -77,16 +79,16 @@ export default function Pricing() {
         {/* Cards Grid */}
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           {services.map((service, index) => (
-            <motion.div
+            <MotionDiv
               key={service.id}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: index * 0.1, duration: 0.5 }}
-              className={`relative bg-white dark:bg-slate-800 rounded-3xl p-8 md:p-10 border transition-all duration-300 flex flex-col h-full ${
+              className={`surface-card relative rounded-3xl p-8 md:p-10 flex flex-col h-full ${
                 service.popular 
-                  ? 'border-[var(--color-primary)] shadow-2xl shadow-blue-900/10 dark:shadow-blue-900/20 md:-translate-y-4' 
-                  : 'border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl'
+                  ? 'border-[var(--color-primary)] ring-2 ring-blue-100 dark:ring-blue-900/40' 
+                  : ''
               }`}
             >
               {service.popular && (
@@ -114,6 +116,11 @@ export default function Pricing() {
                     )}
                   </div>
                 </div>
+                {service.freeNote && (
+                  <span className="inline-flex mb-2 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800">
+                    {service.freeNote}
+                  </span>
+                )}
                 <p className="text-slate-600 dark:text-slate-300 mt-4 text-[15px] leading-relaxed">
                   {service.desc}
                 </p>
@@ -147,7 +154,7 @@ export default function Pricing() {
                   </Button>
                 </Link>
               </div>
-            </motion.div>
+            </MotionDiv>
           ))}
         </div>
       </div>

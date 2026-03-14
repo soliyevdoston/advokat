@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Star, Quote } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+const MotionDiv = motion.div;
 
 const Testimonials = () => {
   const { t } = useLanguage();
@@ -23,12 +24,12 @@ const Testimonials = () => {
 
         <div className="grid md:grid-cols-3 gap-8">
           {t('testimonials.items').map((testimonial, index) => (
-            <motion.div 
+            <MotionDiv 
               key={index}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 relative group hover:-translate-y-2 transition-transform duration-300"
+              className="surface-card p-8 rounded-2xl relative group hover:-translate-y-2"
             >
               <div className="absolute top-6 right-8 text-slate-100 dark:text-slate-700 group-hover:text-blue-50 dark:group-hover:text-slate-600 transition-colors">
                 <Quote size={80} fill="currentColor" />
@@ -53,7 +54,7 @@ const Testimonials = () => {
                   <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">{testimonial.role}</div>
                 </div>
               </div>
-            </motion.div>
+            </MotionDiv>
           ))}
         </div>
       </div>

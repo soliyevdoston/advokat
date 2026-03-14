@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState } from 'react';
 import { translations } from '../utils/translations';
 
@@ -45,10 +46,10 @@ export const LanguageProvider = ({ children }) => {
   };
 
   const languages = [
-    { code: 'uz', name: "O'zbek", flag: "🇺🇿" },
-    { code: 'oz', name: "Ўзбек", flag: "🇺🇿" },
-    { code: 'ru', name: "Русский", flag: "🇷🇺" },
-    { code: 'en', name: "English", flag: "🇺🇸" }
+    { code: 'uz', name: "O'zbek" },
+    { code: 'oz', name: "Ўзбек" },
+    { code: 'ru', name: "Русский" },
+    { code: 'en', name: "English" }
   ];
 
   const value = {

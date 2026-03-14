@@ -1,5 +1,6 @@
 import React from 'react';
 import Hero from '../components/home/Hero';
+import InteractiveHighlights from '../components/home/InteractiveHighlights';
 import Services from '../components/home/Services';
 import News from '../components/home/News';
 import Chatbots from '../components/home/Chatbots';
@@ -13,6 +14,7 @@ export default function Home() {
   return (
     <div className="font-sans antialiased overflow-x-hidden">
       <Hero />
+      <InteractiveHighlights />
       <Services />
       <Constitution />
       <Pricing />

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import { useLanguage } from '../context/LanguageContext';
+const MotionDiv = motion.div;
 
 export default function About() {
   const { t } = useLanguage();
@@ -52,7 +53,7 @@ export default function About() {
 
         <div className="container mx-auto px-4 relative z-10">
           <div className="flex flex-col lg:flex-row items-center gap-12">
-            <motion.div 
+            <MotionDiv 
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
               className="lg:w-1/2"
@@ -71,9 +72,9 @@ export default function About() {
                   {t('about_page.hero.btn')}
                 </Button>
               </Link>
-            </motion.div>
+            </MotionDiv>
 
-            <motion.div 
+            <MotionDiv 
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
@@ -85,7 +86,7 @@ export default function About() {
                 alt="Our Team" 
                 className="relative rounded-3xl shadow-2xl border border-white/20"
               />
-            </motion.div>
+            </MotionDiv>
           </div>
         </div>
       </div>

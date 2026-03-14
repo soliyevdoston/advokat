@@ -1,45 +1,84 @@
-import React from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { lawyers } from '../data/lawyers';
 import ChatInterface from '../components/chat/ChatInterface';
+import SupportChat from '../components/chat/SupportChat';
+import { useAuth } from '../context/AuthContext';
+import { clearQuickLegalCheck, readQuickLegalCheck } from '../utils/quickLegalCheck';
 
 /**
  * ChatPage — /chat/:type va /chat/:type/:id
  *
- * type: 'ai' | 'support' | 'lawyer' | 'document'
- *  - ai       → Advokat AI yordamchisi
- *  - support  → Platforma mutaxassisi / admin vositachisi
- *  - lawyer   → Advokat bilan bog'lanish (admin orqali)
- *  - document → Hujjat generatori
+ * type:
+ * - ai       -> Advokat AI yordamchisi
+ * - support  -> Mutaxassis / support chat
+ * - lawyer   -> Advokat bo'yicha support chat
+ * - document -> Hujjat generatori
  */
 export default function ChatPage() {
+  const { user } = useAuth();
+  const location = useLocation();
   const { type, id } = useParams();
+  const resolvedType = type || 'ai';
+  const quickCheckPayload = useMemo(() => {
+    if (!user) return null;
+    const payload = readQuickLegalCheck();
+    if (!payload?.target) return null;
 
-  let title    = 'Advokat yordamchisi';
+    const targetPath = String(payload.target);
+    const currentPath = `/chat/${resolvedType}`;
+    const isMatch = targetPath === currentPath || (resolvedType === 'ai' && targetPath === '/chat/ai' && location.pathname === '/chat');
+    if (!isMatch) return null;
+
+    clearQuickLegalCheck();
+    return payload;
+  }, [location.pathname, resolvedType, user]);
+
+  if (!user) {
+    return (
+      <Navigate
+        to="/auth"
+        replace
+        state={{
+          isLogin: false,
+          from: { pathname: location.pathname },
+          source: 'chat_gate',
+        }}
+      />
+    );
+  }
+
+  if (resolvedType === 'support' || resolvedType === 'lawyer') {
+    return (
+      <div className="pt-28 pb-20 bg-gray-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <SupportChat
+            lawyerId={resolvedType === 'lawyer' ? id : null}
+            bootstrapMessage={quickCheckPayload?.prompt || ''}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  let title = 'Advokat yordamchisi';
   let subtitle = 'Savollaringizga javob beraman';
-  let initial  = 'Assalomu alaykum! Sizga qanday yuridik yordam kerak?';
+  let initial = 'Assalomu alaykum! Sizga qanday yuridik yordam kerak?';
   let chatType = 'ai';
 
-  if (type === 'support') {
-    title    = 'Platforma Mutaxassisi';
-    subtitle = 'Sizga mos advokat topishda yordam beraman';
-    initial  = 'Assalomu alaykum! Men LegalLink platformasi mutaxassisiman. Sizga qanday yuridik yordam kerak? Muammoingizni qisqacha yozib qoldiring, biz siz uchun eng yaxshi advokatni topib beramiz.';
-    chatType = 'expert';
-
-  } else if (type === 'lawyer' && id) {
-    const lawyer = lawyers.find(l => l.id === parseInt(id));
+  if (resolvedType === 'document') {
+    title = 'Hujjatlar Generatori';
+    subtitle = 'AI yordamida hujjat yarating (1 ta tekin)';
+    initial = "Qanday hujjat tayyorlashimiz kerak? (Masalan: Ariza, Da'vo arizasi, Shartnoma)\n\nEslatma: har bir foydalanuvchi uchun 1 ta hujjat bepul.";
+    chatType = 'document';
+  } else if (resolvedType === 'lawyer' && id) {
+    const lawyer = lawyers.find((item) => item.id === parseInt(id, 10));
     if (lawyer) {
-      title    = 'Platforma Admini';
-      subtitle = `${lawyer.name} bilan bog'lanish bo'yicha`;
-      initial  = `Assalomu alaykum! Siz advokat ${lawyer.name} bilan bog'lanmoqchisiz. Iltimos, ishingiz bo'yicha qisqacha ma'lumot bering. Biz so'rovingizni advokatga yetkazamiz va uchrashuv vaqtini belgilaymiz.`;
+      title = `Advokat ${lawyer.name} bo'yicha yordam`;
+      subtitle = 'Platforma mutaxassisi bilan muloqot';
+      initial = `Assalomu alaykum! Siz advokat ${lawyer.name} bo'yicha murojaat qoldirdingiz. Holatingizni batafsil yozib qoldiring.`;
       chatType = 'expert';
     }
-
-  } else if (type === 'document') {
-    title    = 'Hujjatlar Generatori';
-    subtitle = 'AI yordamida hujjat yarating';
-    initial  = "Qanday hujjat tayyorlashimiz kerak? (Masalan: Ariza, Da'vo arizasi, Shartnoma)";
-    chatType = 'document';
   }
 
   return (
@@ -50,6 +89,8 @@ export default function ChatPage() {
           subtitle={subtitle}
           type={chatType}
           initialMessage={initial}
+          initialUserPrompt={quickCheckPayload?.prompt || ''}
+          quickCheckTitle={quickCheckPayload?.recommendationTitle || ''}
         />
       </div>
     </div>

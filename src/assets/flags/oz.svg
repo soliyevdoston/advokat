@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48" viewBox="0 0 64 48" role="img" aria-label="Uzbekistan flag">
+  <rect width="64" height="48" fill="#1eb5e8"/>
+  <rect y="15" width="64" height="18" fill="#ffffff"/>
+  <rect y="33" width="64" height="15" fill="#1aa04a"/>
+  <rect y="14" width="64" height="1.5" fill="#d32f2f"/>
+  <rect y="32.5" width="64" height="1.5" fill="#d32f2f"/>
+  <circle cx="11" cy="9" r="5" fill="#ffffff"/>
+  <circle cx="13" cy="9" r="4" fill="#1eb5e8"/>
+  <circle cx="19" cy="6" r="1" fill="#ffffff"/>
+  <circle cx="22" cy="8" r="1" fill="#ffffff"/>
+  <circle cx="25" cy="6" r="1" fill="#ffffff"/>
+</svg>

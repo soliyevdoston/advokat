@@ -1,131 +1,261 @@
-import React, { useState } from 'react';
-import { Calendar, Clock, ArrowRight, Tag, Search, ChevronRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import Button from '../components/ui/Button';
-import { useLanguage } from '../context/LanguageContext';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, ArrowLeft, ArrowRight, Calendar, Clock, Loader2, Search } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { buildApiUrl } from '../config/appConfig';
+
+const NEWS_ENDPOINTS = ['/news', '/api/news'];
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=2000';
+
+const FALLBACK_NEWS = [
+  {
+    id: 'fallback-1',
+    title: "Yuridik yangiliklar bo'limi ishga tushdi",
+    excerpt: "Frontend API bilan bog'landi. Endi yangiliklar backenddan avtomatik olinadi.",
+    content:
+      "Yuridik platformada yangiliklar bo'limi yangilandi. Endi foydalanuvchilar uchun yangiliklar tez va qulay ko'rinishda taqdim etiladi.",
+    category: 'platform',
+    image: FALLBACK_IMAGE,
+    author: 'LegalLink',
+    date: new Date().toISOString(),
+    readTime: 2,
+  },
+];
+
+const formatDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sana ko‘rsatilmagan';
+  return date.toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const makeExcerpt = (text) => {
+  const source = String(text || '').trim();
+  if (!source) return "Qisqacha ma'lumot mavjud emas.";
+  if (source.length <= 180) return source;
+  return `${source.slice(0, 180).trim()}...`;
+};
+
+const normalizeNews = (raw = {}, index = 0) => {
+  const id = raw.id || raw._id || raw.slug || `news_${index}_${Date.now()}`;
+  const content = raw.content || raw.body || raw.text || raw.description || '';
+  const excerpt = raw.excerpt || raw.summary || makeExcerpt(content);
+  const createdAt = raw.created_at || raw.createdAt || raw.published_at || raw.publishedAt || raw.date;
+
+  return {
+    id: String(id),
+    title: raw.title || "Nomsiz yangilik",
+    excerpt: makeExcerpt(excerpt || content),
+    content: String(content || excerpt || ''),
+    category: String(raw.category || raw.type || 'general').toLowerCase(),
+    image: raw.image || raw.imageUrl || raw.thumbnail || FALLBACK_IMAGE,
+    author: raw.author || raw.writer || raw.createdBy || 'LegalLink',
+    date: createdAt || new Date().toISOString(),
+    readTime: Number(raw.readTime || raw.read_time || raw.minutes || 3),
+  };
+};
+
+const parseNewsPayload = (payload) => {
+  const list = Array.isArray(payload) ? payload : payload?.news || payload?.data || payload?.items || [];
+  if (!Array.isArray(list)) return [];
+  return list.map(normalizeNews).filter((item) => item.title);
+};
+
+async function fetchNewsAny() {
+  let lastError = null;
+
+  for (const endpoint of NEWS_ENDPOINTS) {
+    try {
+      const response = await fetch(buildApiUrl(endpoint));
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const err = new Error(data?.message || data?.error || `Server xatosi: ${response.status}`);
+        err.status = response.status;
+        throw err;
+      }
+
+      return parseNewsPayload(data);
+    } catch (err) {
+      lastError = err;
+      if (err?.status === 404 || err?.status === 405) continue;
+      throw err;
+    }
+  }
+
+  throw lastError || new Error('News endpoint topilmadi');
+}
+
+const categoryLabel = (value) => {
+  const key = String(value || 'general').toLowerCase();
+  const map = {
+    all: 'Barchasi',
+    general: 'Umumiy',
+    platform: 'Platforma',
+    legislation: 'Qonunchilik',
+    court: 'Sud',
+    tips: 'Maslahat',
+    interview: 'Intervyu',
+  };
+  return map[key] || key.charAt(0).toUpperCase() + key.slice(1);
+};
 
 export default function NewsPage() {
+  const { id } = useParams();
+  const [news, setNews] = useState([]);
   const [activeCategory, setActiveCategory] = useState('all');
-  const { t } = useLanguage();
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const categories = [
-    { id: 'all', label: t('news_page.categories.all') },
-    { id: 'legislation', label: t('news_page.categories.legislation') },
-    { id: 'court', label: t('news_page.categories.court') },
-    { id: 'tips', label: t('news_page.categories.tips') },
-    { id: 'interview', label: t('news_page.categories.interview') }
-  ];
+  useEffect(() => {
+    let cancelled = false;
 
-  const news = [
-    {
-      id: 1,
-      title: "O'zbekiston Respublikasining yangi Konstitutsiyasi: Asosiy o'zgarishlar",
-      excerpt: "Yangilangan Konstitutsiyada inson huquqlari, sud tizimi va advokatura faoliyatiga oid kiritilgan muhim o'zgartirishlar tahlili. Yangi normalarning fuqarolar hayotiga ta'siri va kutilayotgan natijalar.",
-      category: "legislation",
-      image: "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=2000",
-      date: "28 Jan, 2026",
-      readTime: "5",
-      author: "Azizbek Tursunov"
-    },
-    {
-      id: 2,
-      title: "Biznesni ro'yxatdan o'tkazish tartibi soddalashtirildi",
-      excerpt: "Tadbirkorlar uchun yangi imtiyozlar va davlat xizmatlaridan foydalanish bo'yicha qo'llanma. Endi barcha jarayonlar onlayn tarzda, ortiqcha ovoragarchiliksiz amalga oshiriladi.",
-      category: "tips",
-      image: "https://images.unsplash.com/photo-1450101499121-e3b1d0cd12e3?auto=format&fit=crop&q=80&w=2000",
-      date: "27 Jan, 2026",
-      readTime: "4",
-      author: "Malika Karimova"
-    },
-    {
-      id: 3,
-      title: "Sud tizimida raqamlashtirish: Elektron sud",
-      excerpt: "Sud jarayonlarida sun'iy intellekt va elektron hujjat aylanishi tizimining joriy etilishi. Bu o'zgarishlar odil sudlovni ta'minlashda qanday rol o'ynaydi?",
-      category: "court",
-      image: "https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=2000",
-      date: "25 Jan, 2026",
-      readTime: "6",
-      author: "Jamshid Aliyev"
-    },
-    {
-      id: 4,
-      title: "Mehnat kodeksidagi yangi o'zgarishlar",
-      excerpt: "Xodim va ish beruvchi munosabatlaridagi yangi tartib-qoidalar haqida batafsil. Mehnat ta'tillari, ish vaqti va masofaviy ishlash bo'yicha yangi normalar.",
-      category: "legislation",
-      image: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&q=80&w=2000",
-      date: "24 Jan, 2026",
-      readTime: "8",
-      author: "Nargiza Sobirova"
-    },
-    {
-      id: 5,
-      title: "Oilaviy nizolarni hal qilishda mediatorning roli",
-      excerpt: "Nizolarni sudgacha hal qilishning samarali usullari va mediator xizmati haqida. Ajrimlarni oldini olish va tinch yo'l bilan kelishuvga erishish usullari.",
-      category: "tips",
-      image: "https://images.unsplash.com/photo-1573497620053-ea5300f94f21?auto=format&fit=crop&q=80&w=2000",
-      date: "22 Jan, 2026",
-      readTime: "5",
-      author: "Dilshod Rahimov"
-    },
-    {
-      id: 6,
-      title: "Taniqli advokat bilan eksklyuziv intervyu",
-      excerpt: "Muvaffaqiyatli advokatlik faoliyati sirlari va yosh yuristlarga maslahatlar. Kasbiy rivojlanish va etik qoidalar haqida suhbat.",
-      category: "interview",
-      image: "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&q=80&w=2000",
-      date: "20 Jan, 2026",
-      readTime: "10",
-      author: "Zarina Usmonova"
-    }
-  ];
+    const loadNews = async () => {
+      setLoading(true);
+      setError('');
 
-  const filteredNews = activeCategory === 'all' 
-    ? news 
-    : news.filter(item => item.category === activeCategory);
+      try {
+        const list = await fetchNewsAny();
+        if (cancelled) return;
+        setNews(list.length ? list : FALLBACK_NEWS);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err?.message || "Yangiliklarni olishda xatolik yuz berdi");
+        setNews(FALLBACK_NEWS);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
 
-  const getCategoryLabel = (id) => {
-    return t(`news_page.categories.${id}`);
-  };
+    loadNews();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const categories = useMemo(() => {
+    const set = new Set(['all']);
+    news.forEach((item) => {
+      if (item.category) set.add(item.category);
+    });
+    return Array.from(set).map((key) => ({ id: key, label: categoryLabel(key) }));
+  }, [news]);
+
+  const filteredNews = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return news.filter((item) => {
+      const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
+      if (!matchesCategory) return false;
+
+      if (!query) return true;
+      const haystack = `${item.title} ${item.excerpt} ${item.content} ${item.author}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [activeCategory, news, search]);
+
+  const selectedArticle = useMemo(() => {
+    if (!id) return null;
+    return news.find((item) => String(item.id) === String(id)) || null;
+  }, [id, news]);
+
+  if (id && loading) {
+    return (
+      <div className="min-h-screen pt-32 pb-16 bg-white flex items-center justify-center">
+        <Loader2 size={24} className="animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (id && !selectedArticle) {
+    return (
+      <div className="min-h-screen pt-28 pb-20 bg-white">
+        <div className="max-w-4xl mx-auto px-4">
+          <Link to="/news" className="inline-flex items-center gap-2 text-blue-600 hover:underline mb-8">
+            <ArrowLeft size={16} /> Yangiliklar ro'yxatiga qaytish
+          </Link>
+          <div className="rounded-2xl border border-red-200 bg-red-50 text-red-700 p-5">
+            <p className="font-semibold">Yangilik topilmadi</p>
+            <p className="text-sm mt-1">Ushbu ID bo'yicha ma'lumot mavjud emas yoki o'chirilgan.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (selectedArticle) {
+    return (
+      <div className="min-h-screen pt-28 pb-20 bg-white">
+        <div className="max-w-4xl mx-auto px-4">
+          <Link to="/news" className="inline-flex items-center gap-2 text-blue-600 hover:underline mb-8">
+            <ArrowLeft size={16} /> Yangiliklar ro'yxatiga qaytish
+          </Link>
+
+          <article>
+            <img
+              src={selectedArticle.image}
+              alt={selectedArticle.title}
+              className="w-full h-[340px] object-cover rounded-3xl mb-8"
+            />
+            <div className="flex flex-wrap gap-4 text-sm text-slate-500 mb-4">
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar size={16} /> {formatDate(selectedArticle.date)}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Clock size={16} /> {selectedArticle.readTime} daqiqa
+              </span>
+              <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700">
+                {categoryLabel(selectedArticle.category)}
+              </span>
+            </div>
+
+            <h1 className="text-3xl md:text-5xl font-serif font-bold text-slate-900 leading-tight mb-4">
+              {selectedArticle.title}
+            </h1>
+            <p className="text-sm text-slate-500 mb-8">Muallif: {selectedArticle.author}</p>
+            <p className="text-lg text-slate-700 leading-8 whitespace-pre-wrap">
+              {selectedArticle.content || selectedArticle.excerpt}
+            </p>
+          </article>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white min-h-screen pt-32 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Simple & Clean Header */}
-        <div className="mb-12 border-b border-slate-100 pb-10">
+        <div className="mb-10 border-b border-slate-100 pb-8">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
-              <div className="flex items-center gap-2 text-[var(--color-primary)] font-medium mb-2">
-                <span className="w-8 h-[2px] bg-[var(--color-primary)]"></span>
-                <span>{t('news_page.header.tag')}</span>
-              </div>
-              <h1 className="text-4xl md:text-5xl font-serif font-bold text-slate-900 mb-4">{t('news_page.header.title')}</h1>
+              <h1 className="text-4xl md:text-5xl font-serif font-bold text-slate-900 mb-4">
+                Yuridik Yangiliklar
+              </h1>
               <p className="text-lg text-slate-600 max-w-2xl leading-relaxed">
-                {t('news_page.header.subtitle')}
+                Saytdagi yangiliklar backenddan olinadi va foydalanuvchilar uchun shu yerda ko‘rsatiladi.
               </p>
             </div>
-            
-            {/* Search Bar */}
-            <div className="relative w-full md:w-72">
-              <input 
-                type="text" 
-                placeholder={t('news_page.header.search_placeholder')} 
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 transition-all font-medium placeholder:text-slate-400"
+
+            <div className="relative w-full md:w-80">
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Sarlavha yoki matn bo‘yicha qidirish..."
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
               <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
             </div>
           </div>
 
-          {/* Categories */}
-          <div className="flex flex-wrap gap-2 mt-8">
+          <div className="flex flex-wrap gap-2 mt-6">
             {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 ${
-                  activeCategory === cat.id 
-                    ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20' 
-                    : 'bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                  activeCategory === cat.id
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                 }`}
               >
                 {cat.label}
@@ -134,93 +264,64 @@ export default function NewsPage() {
           </div>
         </div>
 
-        {/* Featured Article (First item) */}
-        {activeCategory === 'all' && news.length > 0 && (
-          <div className="mb-16">
-            <Link to={`/news/${news[0].id}`} className="group block">
-              <div className="grid lg:grid-cols-2 gap-8 items-center bg-slate-50 rounded-[2rem] p-4 md:p-6 hover:bg-slate-100 transition-colors duration-300">
-                <div className="relative aspect-[4/3] lg:aspect-square w-full overflow-hidden rounded-2xl shadow-sm">
-                  <img 
-                    src={news[0].image} 
-                    alt={news[0].title} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
-                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-slate-900 shadow-sm">
-                    {getCategoryLabel(news[0].category)}
-                  </div>
-                </div>
-                <div className="lg:pr-8 lg:py-4">
-                  <div className="flex items-center gap-4 text-sm text-slate-500 mb-4 font-medium">
-                     <span className="flex items-center gap-1.5"><Calendar size={16} /> {news[0].date}</span>
-                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                     <span className="flex items-center gap-1.5"><Clock size={16} /> {news[0].readTime} {t('news_page.read_time')}</span>
-                  </div>
-                  <h2 className="text-3xl md:text-4xl font-serif font-bold text-slate-900 mb-4 leading-tight group-hover:text-[var(--color-primary)] transition-colors">
-                    {news[0].title}
-                  </h2>
-                  <p className="text-slate-600 text-lg mb-6 line-clamp-3 leading-relaxed">
-                    {news[0].excerpt}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold text-sm">
-                        {news[0].author.charAt(0)}
-                      </div>
-                      <span className="font-semibold text-slate-900">{news[0].author}</span>
-                    </div>
-                    <span className="inline-flex items-center text-[var(--color-primary)] font-bold group-hover:translate-x-1 transition-transform">
-                      {t('news_page.read_more')} <ArrowRight size={20} className="ml-2" />
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Link>
+        {error && (
+          <div className="mb-6 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <AlertCircle size={16} />
+            {error}
           </div>
         )}
 
-        {/* Regular Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
-          {(activeCategory === 'all' ? news.slice(1) : filteredNews).map((item) => (
-            <article key={item.id} className="group flex flex-col h-full bg-white">
-              <Link to={`/news/${item.id}`} className="block overflow-hidden rounded-2xl mb-6 relative aspect-[3/2]">
-                <img 
-                  src={item.image} 
-                  alt={item.title} 
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                />
-                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-lg text-xs font-bold text-slate-900 shadow-sm">
-                  {getCategoryLabel(item.category)}
-                </div>
-              </Link>
-              
-              <div className="flex flex-col flex-grow">
-                <div className="flex items-center gap-3 text-xs font-medium text-slate-400 mb-3 uppercase tracking-wider">
-                  <span>{item.date}</span>
-                  <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                  <span>{item.readTime} {t('news_page.read_time')}</span>
-                </div>
-                
-                <h3 className="text-xl font-bold text-slate-900 mb-3 leading-tight group-hover:text-[var(--color-primary)] transition-colors line-clamp-2">
-                  <Link to={`/news/${item.id}`}>
-                    {item.title}
-                  </Link>
-                </h3>
-                
-                <p className="text-slate-600 text-sm leading-relaxed mb-4 line-clamp-3 flex-grow">
-                  {item.excerpt}
-                </p>
-                
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between mt-auto">
-                   <span className="text-sm font-semibold text-slate-900">{item.author}</span>
-                   <Link to={`/news/${item.id}`} className="text-[var(--color-primary)] p-2 rounded-full hover:bg-blue-50 transition-colors">
-                     <ChevronRight size={20} />
-                   </Link>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+        {loading ? (
+          <div className="py-20 flex items-center justify-center text-slate-500">
+            <Loader2 size={24} className="animate-spin mr-2" /> Yangiliklar yuklanmoqda...
+          </div>
+        ) : filteredNews.length === 0 ? (
+          <div className="py-16 text-center border border-slate-200 rounded-2xl text-slate-500">
+            Tanlangan filtr bo‘yicha yangilik topilmadi.
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredNews.map((item) => (
+              <article key={item.id} className="group flex flex-col h-full bg-white">
+                <Link to={`/news/${item.id}`} className="block overflow-hidden rounded-2xl mb-4 relative aspect-[3/2]">
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                </Link>
 
+                <div className="flex flex-col flex-grow">
+                  <div className="flex items-center gap-3 text-xs font-medium text-slate-400 mb-3 uppercase tracking-wider">
+                    <span>{formatDate(item.date)}</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                    <span>{item.readTime} daqiqa</span>
+                  </div>
+
+                  <h3 className="text-xl font-bold text-slate-900 mb-2 leading-tight line-clamp-2">
+                    <Link to={`/news/${item.id}`} className="group-hover:text-blue-700 transition-colors">
+                      {item.title}
+                    </Link>
+                  </h3>
+
+                  <p className="text-slate-600 text-sm leading-relaxed mb-4 line-clamp-3 flex-grow">
+                    {item.excerpt}
+                  </p>
+
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between mt-auto">
+                    <span className="text-sm font-semibold text-slate-800">{item.author}</span>
+                    <Link
+                      to={`/news/${item.id}`}
+                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-semibold"
+                    >
+                      O‘qish <ArrowRight size={16} />
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

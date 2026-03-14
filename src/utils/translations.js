@@ -136,7 +136,7 @@ export const translations = {
         },
         {
           q: "To'lovni qaytarib olsa bo'ladimi?",
-          a: "Agar xizmat ko'rsatilmagan yoki sifatsiz bo'lsa, platforma qoidalariga muvofiq to\'lovni qaytarish tizimi mavjud."
+          a: "Agar xizmat ko'rsatilmagan yoki sifatsiz bo'lsa, platforma qoidalariga muvofiq to'lovni qaytarish tizimi mavjud."
         }
       ]
     },
@@ -204,8 +204,6 @@ export const translations = {
       work_hours: "Ish vaqti",
       chat_btn: "Xabar yozish",
       call_btn: "Qo'ng'iroq",
-      chat_btn: "Yozish",
-      call_btn: "Bog'lanish so'rovi",
       top_lawyer: "Top Advokat",
       bio_exp: "yillik tajribaga ega malakali advokat. U asosan",
       bio_spec: "bo'yicha ixtisoslashgan bo'lib,",
@@ -641,8 +639,6 @@ export const translations = {
       work_hours: "Иш вақти",
       chat_btn: "Хабар ёзиш",
       call_btn: "Қўнғироқ",
-      chat_btn: "Ёзиш",
-      call_btn: "Боғланиш сўрови",
       top_lawyer: "Топ Адвокат",
       bio_exp: "йиллик тажрибага эга малакали адвокат. У асосан",
       bio_spec: "бўйича ихтисослашган бўлиб,",

@@ -1,8 +1,9 @@
 import React from 'react';
-import { BookOpen, Scale, ArrowRight } from 'lucide-react';
+import { BookOpen, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+const MotionDiv = motion.div;
 
 const Constitution = () => {
   const { t } = useLanguage();
@@ -31,7 +32,7 @@ const Constitution = () => {
             </div>
             
             {/* Image */}
-            <motion.div 
+            <MotionDiv 
               initial={{ y: 20, opacity: 0 }}
               whileInView={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.8 }}
@@ -45,7 +46,7 @@ const Constitution = () => {
                       className="relative w-full drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transform -rotate-6 hover:rotate-0 transition-transform duration-500"
                     />
                 </div>
-            </motion.div>
+            </MotionDiv>
             
             {/* Background Decor */}
              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3"></div>

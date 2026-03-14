@@ -48,7 +48,7 @@ export default function Chatbots() {
           </div>
 
           {/* Lawyer Connect Bot */}
-          <div className="relative overflow-hidden rounded-[2rem] bg-white dark:bg-slate-800 text-slate-900 dark:text-white p-10 border border-slate-200 dark:border-slate-700 group shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2">
+          <div className="surface-card relative overflow-hidden rounded-[2rem] text-slate-900 dark:text-white p-10 group hover:-translate-y-2">
              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 dark:bg-indigo-900/20 rounded-full blur-3xl -mr-16 -mt-16"></div>
              
              <div className="relative z-10 flex flex-col h-full">

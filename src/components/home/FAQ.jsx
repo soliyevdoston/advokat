@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Minus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
+const MotionDiv = motion.div;
 
 export default function FAQ() {
   const [openIndex, setOpenIndex] = useState(0);
@@ -29,7 +30,7 @@ export default function FAQ() {
           {faqs.map((faq, index) => (
             <div
               key={index}
-              className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-[var(--color-primary)] transition-colors duration-300"
+              className="surface-card rounded-2xl overflow-hidden hover:border-[var(--color-primary)]"
             >
               <button
                 onClick={() => setOpenIndex(index === openIndex ? -1 : index)}
@@ -45,7 +46,7 @@ export default function FAQ() {
 
               <AnimatePresence>
                 {index === openIndex && (
-                  <motion.div
+                  <MotionDiv
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
@@ -55,7 +56,7 @@ export default function FAQ() {
                     <div className="p-6 pt-0 text-slate-600 dark:text-slate-300 leading-relaxed border-t border-dashed border-slate-100 dark:border-slate-700 mt-2">
                       {faq.answer}
                     </div>
-                  </motion.div>
+                  </MotionDiv>
                 )}
               </AnimatePresence>
             </div>
