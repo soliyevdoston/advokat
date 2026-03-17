@@ -1,5 +1,5 @@
 import React from 'react';
-import logoLL from '../../assets/LL.svg';
+import logoLL from '../../assets/logo.png';
 
 export default function Logo({ className = 'w-10 h-10', color = '' }) {
   return (
