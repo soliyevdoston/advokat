@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Phone, MapPin, Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
+import { Mail, Phone, MapPin, Facebook, Twitter, Instagram } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import Logo from '../ui/Logo';
 
@@ -24,10 +24,9 @@ export default function Footer() {
               {t('footer.desc')}
             </p>
             <div className="flex gap-4">
-              <SocialIcon icon={<Facebook size={20} />} />
-              <SocialIcon icon={<Twitter size={20} />} />
-              <SocialIcon icon={<Instagram size={20} />} />
-              <SocialIcon icon={<Linkedin size={20} />} />
+              <SocialIcon href="https://www.instagram.com/legallinkuz/" label="Instagram" icon={<Instagram size={20} />} />
+              <SocialIcon href="https://www.facebook.com/legallink.uz" label="Facebook" icon={<Facebook size={20} />} />
+              <SocialIcon href="https://x.com/etonemativich?s=21" label="X" icon={<Twitter size={20} />} />
             </div>
           </div>
 
@@ -87,9 +86,15 @@ export default function Footer() {
   );
 }
 
-function SocialIcon({ icon }) {
+function SocialIcon({ icon, href, label }) {
   return (
-    <a href="#" className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-[var(--color-primary)] hover:text-white transition-all duration-300 text-slate-400 hover:-translate-y-1">
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center hover:bg-[var(--color-primary)] hover:text-white transition-all duration-300 text-slate-400 hover:-translate-y-1"
+    >
       {icon}
     </a>
   );

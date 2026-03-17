@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { lawyers } from '../data/lawyers';
 import ChatInterface from '../components/chat/ChatInterface';
@@ -20,6 +20,7 @@ export default function ChatPage() {
   const location = useLocation();
   const { type, id } = useParams();
   const resolvedType = type || 'ai';
+  const [quickPrompt, setQuickPrompt] = useState('');
   const quickCheckPayload = useMemo(() => {
     if (!user) return null;
     const payload = readQuickLegalCheck();
@@ -81,15 +82,46 @@ export default function ChatPage() {
     }
   }
 
+  const quickTemplates = resolvedType === 'document'
+    ? [
+      "Menga da'vo arizasi shabloni kerak. Qanday ma'lumotlar zarur?",
+      "Ijara shartnomasining xavfsiz variantini tuzib bering.",
+      "Murojaat xatini rasmiy tilda tayyorlashga yordam bering.",
+    ]
+    : [
+      'Mening holatim bo‘yicha bosqichma-bosqich yuridik reja tuzing.',
+      'Qaysi hujjatlarni darhol tayyorlashim kerak?',
+      'Muzokara va sudgacha hal qilish uchun strategiya bering.',
+    ];
+
   return (
     <div className="pt-28 pb-20 bg-gray-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Tezkor promptlar:</p>
+          <div className="flex flex-wrap gap-2">
+            {quickTemplates.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setQuickPrompt(item)}
+                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  quickPrompt === item
+                    ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
         <ChatInterface
           title={title}
           subtitle={subtitle}
           type={chatType}
           initialMessage={initial}
-          initialUserPrompt={quickCheckPayload?.prompt || ''}
+          initialUserPrompt={quickPrompt || quickCheckPayload?.prompt || ''}
           quickCheckTitle={quickCheckPayload?.recommendationTitle || ''}
         />
       </div>

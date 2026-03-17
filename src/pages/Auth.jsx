@@ -19,10 +19,10 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const resolveRedirect = () => {
+  const resolveRedirect = (role) => {
     const from = location.state?.from?.pathname;
     if (from && from !== '/auth') return from;
-    return '/dashboard';
+    return role === 'admin' ? '/admin' : role === 'lawyer' ? '/lawyer' : '/dashboard';
   };
 
   const handleLogin = async (event) => {
@@ -37,8 +37,8 @@ export default function Auth() {
     const passwordVal = String(form.get('password') || '').trim();
 
     try {
-      await login(emailVal, passwordVal);
-      navigate(resolveRedirect(), { replace: true });
+      const session = await login(emailVal, passwordVal);
+      navigate(resolveRedirect(session?.user?.role), { replace: true });
     } catch (err) {
       setError(err.message || t('auth.error_general'));
     } finally {
@@ -72,7 +72,7 @@ export default function Auth() {
         return;
       }
 
-      navigate(resolveRedirect(), { replace: true });
+      navigate(resolveRedirect(result?.user?.role), { replace: true });
     } catch (err) {
       setError(err.message || t('auth.error_general'));
     } finally {
@@ -88,8 +88,8 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      await verifyCode(email, code);
-      navigate(resolveRedirect(), { replace: true });
+      const session = await verifyCode(email, code);
+      navigate(resolveRedirect(session?.user?.role), { replace: true });
     } catch (err) {
       setError(err.message || t('auth.error_code'));
     } finally {
@@ -235,6 +235,8 @@ export default function Auth() {
             <div className="mt-6 p-4 rounded-2xl border border-amber-100 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300">
               <p className="font-bold mb-1">Local fallback mode yoqilgan</p>
               <p>Backend ulanmaganida test loginlar local storage orqali ishlashi mumkin.</p>
+              <p className="mt-1">Admin: `admin@legallink.uz` / `admin12345`</p>
+              <p>Advokat: `lawyer@legallink.uz` / `lawyer12345`</p>
             </div>
           )}
         </div>

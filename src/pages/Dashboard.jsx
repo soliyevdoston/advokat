@@ -11,7 +11,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import { openPaymentGateway } from '../utils/paymentGate';
@@ -162,6 +162,24 @@ export default function Dashboard() {
     return { openApplications, activeSubscriptions, openChats };
   }, [applications, subscriptions, conversations]);
 
+  const priorityTasks = useMemo(() => {
+    const list = [];
+    if (stats.openApplications > 0) {
+      list.push(`${stats.openApplications} ta ariza jarayonda. Statuslarni kuzating.`);
+    }
+    const waitingApproval = applications.filter((item) => item.chatApproved === false).length;
+    if (waitingApproval > 0) {
+      list.push(`${waitingApproval} ta arizada chat admin tasdig‘ini kutmoqda.`);
+    }
+    if (stats.activeSubscriptions === 0) {
+      list.push('Pro obuna yoqilmagan. Tezkor xizmatlar uchun obunani faollashtiring.');
+    }
+    if (!list.length) {
+      list.push('Hammasi joyida. Yangi murojaat yaratish orqali ishni davom ettiring.');
+    }
+    return list.slice(0, 3);
+  }, [applications, stats.activeSubscriptions, stats.openApplications]);
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -189,6 +207,11 @@ export default function Dashboard() {
       status: 'new',
       createdAt: new Date().toISOString(),
       userEmail: user?.email || '',
+      userId: user?.id || null,
+      assignedLawyerId: null,
+      assignedLawyerEmail: '',
+      assignedLawyerName: '',
+      chatApproved: false,
     };
 
     try {
@@ -256,6 +279,10 @@ export default function Dashboard() {
     );
   }
 
+  if (user.role === 'lawyer') {
+    return <Navigate to="/lawyer" replace />;
+  }
+
   return (
     <div className="min-h-screen pt-28 pb-20 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -313,14 +340,14 @@ export default function Dashboard() {
         </div>
 
         {loading ? (
-          <div className="surface-card rounded-3xl p-10 flex flex-col items-center text-slate-500">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-10 flex flex-col items-center text-slate-500">
             <Loader2 size={30} className="animate-spin mb-3" />
             Yuklanmoqda...
           </div>
         ) : (
           <>
             {activeTab === 'overview' && (
-              <div className="grid lg:grid-cols-3 gap-5">
+              <div className="grid lg:grid-cols-4 gap-5">
                 <Card title="Tez amallar">
                   <div className="space-y-2">
                     <Button onClick={() => setActiveTab('applications')} className="btn-primary w-full">Ariza yaratish</Button>
@@ -335,6 +362,9 @@ export default function Dashboard() {
                         <li key={String(item.id || idx)} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
                           <p className="font-medium text-slate-900 dark:text-white">{item.title || item.subject || 'Nomsiz ariza'}</p>
                           <p className="text-xs text-slate-500 mt-1">{item.status || 'new'}</p>
+                          {item.assignedLawyerName && (
+                            <p className="text-xs text-slate-500 mt-1">Advokat: {item.assignedLawyerName}</p>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -351,6 +381,15 @@ export default function Dashboard() {
                       ))}
                     </ul>
                   )}
+                </Card>
+                <Card title="Action Center">
+                  <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                    {priorityTasks.map((task) => (
+                      <li key={task} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
+                        {task}
+                      </li>
+                    ))}
+                  </ul>
                 </Card>
               </div>
             )}
@@ -396,8 +435,16 @@ export default function Dashboard() {
                         <div key={String(item.id || item._id || idx)} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
                           <p className="font-medium text-slate-900 dark:text-white">{item.title || item.subject || 'Nomsiz ariza'}</p>
                           <p className="text-xs text-slate-500 mt-1">{item.description || item.text || '-'}</p>
+                          {item.assignedLawyerName && (
+                            <p className="text-xs text-slate-500 mt-1">Biriktirilgan advokat: {item.assignedLawyerName}</p>
+                          )}
                           <div className="mt-2 inline-flex text-xs px-2 py-1 rounded-lg bg-amber-100/80 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                             {item.status || 'new'}
+                          </div>
+                          <div className={`mt-2 inline-flex text-xs px-2 py-1 rounded-lg ${
+                            item.chatApproved ? 'bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                          }`}>
+                            {item.chatApproved ? 'Chat ruxsati berilgan' : 'Chat admin tasdig‘ini kutmoqda'}
                           </div>
                         </div>
                       ))}
@@ -507,7 +554,7 @@ export default function Dashboard() {
 
 function Card({ title, children }) {
   return (
-    <div className="surface-card rounded-3xl p-5">
+    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 p-5">
       <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 inline-flex items-center gap-2">
         <ShieldCheck size={18} className="text-[var(--color-primary)] dark:text-blue-400" />
         {title}
@@ -519,7 +566,7 @@ function Card({ title, children }) {
 
 function StatBox({ icon, title, value }) {
   return (
-    <div className="surface-card rounded-2xl p-4 flex items-center gap-3">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 flex items-center gap-3">
       <div className="w-11 h-11 rounded-xl bg-[var(--color-primary)] text-white flex items-center justify-center">
         {React.createElement(icon, { size: 20 })}
       </div>

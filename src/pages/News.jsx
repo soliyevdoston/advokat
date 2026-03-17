@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, Calendar, Clock, Loader2, Search } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Bookmark, Calendar, Clock, Loader2, Search, Sparkles } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { buildApiUrl } from '../config/appConfig';
 
 const NEWS_ENDPOINTS = ['/news', '/api/news'];
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=2000';
+const SAVED_NEWS_KEY = 'legallink_saved_news_v1';
 
 const FALLBACK_NEWS = [
   {
@@ -98,6 +99,20 @@ const categoryLabel = (value) => {
   return map[key] || key.charAt(0).toUpperCase() + key.slice(1);
 };
 
+const readSavedNews = () => {
+  try {
+    const raw = localStorage.getItem(SAVED_NEWS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeSavedNews = (ids) => {
+  localStorage.setItem(SAVED_NEWS_KEY, JSON.stringify(ids));
+};
+
 export default function NewsPage() {
   const { id } = useParams();
   const [news, setNews] = useState([]);
@@ -105,6 +120,8 @@ export default function NewsPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [savedIds, setSavedIds] = useState(() => readSavedNews());
+  const [savedOnly, setSavedOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,6 +161,7 @@ export default function NewsPage() {
     const query = search.trim().toLowerCase();
 
     return news.filter((item) => {
+      if (savedOnly && !savedIds.includes(String(item.id))) return false;
       const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
       if (!matchesCategory) return false;
 
@@ -151,12 +169,31 @@ export default function NewsPage() {
       const haystack = `${item.title} ${item.excerpt} ${item.content} ${item.author}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [activeCategory, news, search]);
+  }, [activeCategory, news, savedIds, savedOnly, search]);
+
+  const digestItems = useMemo(() => {
+    const scoped = (savedOnly ? news.filter((item) => savedIds.includes(String(item.id))) : filteredNews)
+      .slice(0, 3);
+    return scoped.map((item) => ({
+      id: item.id,
+      title: item.title,
+      tip: `${categoryLabel(item.category)}: ${makeExcerpt(item.excerpt).replace(/\.+$/, '')}`,
+    }));
+  }, [filteredNews, news, savedIds, savedOnly]);
 
   const selectedArticle = useMemo(() => {
     if (!id) return null;
     return news.find((item) => String(item.id) === String(id)) || null;
   }, [id, news]);
+
+  const toggleSaved = (articleId) => {
+    const idValue = String(articleId);
+    setSavedIds((prev) => {
+      const next = prev.includes(idValue) ? prev.filter((item) => item !== idValue) : [idValue, ...prev];
+      writeSavedNews(next);
+      return next;
+    });
+  };
 
   if (id && loading) {
     return (
@@ -206,6 +243,18 @@ export default function NewsPage() {
               <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700">
                 {categoryLabel(selectedArticle.category)}
               </span>
+              <button
+                type="button"
+                onClick={() => toggleSaved(selectedArticle.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${
+                  savedIds.includes(String(selectedArticle.id))
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : 'bg-white border-slate-200 text-slate-600'
+                }`}
+              >
+                <Bookmark size={14} className={savedIds.includes(String(selectedArticle.id)) ? 'fill-current' : ''} />
+                {savedIds.includes(String(selectedArticle.id)) ? 'Saqlangan' : 'Saqlash'}
+              </button>
             </div>
 
             <h1 className="text-3xl md:text-5xl font-serif font-bold text-slate-900 leading-tight mb-4">
@@ -215,6 +264,20 @@ export default function NewsPage() {
             <p className="text-lg text-slate-700 leading-8 whitespace-pre-wrap">
               {selectedArticle.content || selectedArticle.excerpt}
             </p>
+
+            {digestItems.length > 0 && (
+              <div className="mt-10 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
+                <p className="text-sm font-semibold text-slate-900 inline-flex items-center gap-2">
+                  <Sparkles size={15} className="text-blue-600" />
+                  Shaxsiy digest
+                </p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                  {digestItems.map((item) => (
+                    <li key={`digest_${item.id}`}>{item.tip}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </article>
         </div>
       </div>
@@ -261,7 +324,38 @@ export default function NewsPage() {
                 {cat.label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setSavedOnly((prev) => !prev)}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all inline-flex items-center gap-1.5 ${
+                savedOnly
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <Bookmark size={14} className={savedOnly ? 'fill-current' : ''} />
+              Saqlanganlar
+            </button>
           </div>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <p className="text-sm font-semibold text-slate-900 inline-flex items-center gap-2">
+            <Sparkles size={15} className="text-blue-600" />
+            Tezkor digest
+          </p>
+          <p className="text-xs text-slate-500 mt-1">Tanlangan filtrlar asosida muhim yangiliklar jamlanmasi</p>
+          {digestItems.length ? (
+            <ul className="mt-3 space-y-1.5 text-sm text-slate-700">
+              {digestItems.map((item) => (
+                <li key={`digest_list_${item.id}`} className="line-clamp-1">
+                  {item.tip}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-slate-500">Digest uchun kamida 1 ta maqola tanlang.</p>
+          )}
         </div>
 
         {error && (
@@ -292,6 +386,21 @@ export default function NewsPage() {
                 </Link>
 
                 <div className="flex flex-col flex-grow">
+                  <div className="mb-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleSaved(item.id)}
+                      className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border ${
+                        savedIds.includes(String(item.id))
+                          ? 'bg-blue-50 border-blue-200 text-blue-700'
+                          : 'bg-white border-slate-200 text-slate-500'
+                      }`}
+                    >
+                      <Bookmark size={12} className={savedIds.includes(String(item.id)) ? 'fill-current' : ''} />
+                      {savedIds.includes(String(item.id)) ? 'Saqlangan' : 'Saqlash'}
+                    </button>
+                  </div>
+
                   <div className="flex items-center gap-3 text-xs font-medium text-slate-400 mb-3 uppercase tracking-wider">
                     <span>{formatDate(item.date)}</span>
                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>

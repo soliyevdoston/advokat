@@ -13,9 +13,13 @@ import Contact from './pages/Contact';
 import ChatPage from './pages/Chat';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
+import LawyerDashboard from './pages/LawyerDashboard';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminLogin from './pages/AdminLogin';
 import ConstitutionPage from './pages/ConstitutionPage';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import { useAuth } from './context/AuthContext';
 
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -63,7 +67,26 @@ function AppContent() {
             path="/dashboard"
             element={(
               <PrivateRoute>
-                <Dashboard />
+                <RoleDashboard />
+              </PrivateRoute>
+            )}
+          />
+
+          <Route
+            path="/lawyer"
+            element={(
+              <PrivateRoute requireRole="lawyer" unauthorizedTo="/dashboard">
+                <LawyerDashboard />
+              </PrivateRoute>
+            )}
+          />
+
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route
+            path="/admin"
+            element={(
+              <PrivateRoute requireRole="admin" unauthorizedTo="/dashboard">
+                <AdminDashboard />
               </PrivateRoute>
             )}
           />
@@ -80,3 +103,17 @@ function AppContent() {
 }
 
 export default App;
+
+function RoleDashboard() {
+  const { user } = useAuth();
+
+  if (user?.role === 'lawyer') {
+    return <Navigate to="/lawyer" replace />;
+  }
+
+  if (user?.role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return <Dashboard />;
+}

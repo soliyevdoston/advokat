@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Filter, Star, MapPin, Briefcase, Phone, MessageSquare, ShieldCheck, Search, Loader2, AlertCircle } from 'lucide-react';
+import { Filter, Star, MapPin, Briefcase, Phone, MessageSquare, ShieldCheck, Search, Loader2, AlertCircle, Scale, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import LawyerFilter from '../components/lawyers/LawyerFilter';
 import LawyerModal from '../components/lawyers/LawyerModal';
@@ -10,6 +10,21 @@ const MotionDiv = motion.div;
 
 const LAWYER_ENDPOINTS = ['/lawyers', '/api/lawyers'];
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=800';
+const SHORTLIST_KEY = 'legallink_lawyer_shortlist_v1';
+
+const readShortlist = () => {
+  try {
+    const raw = localStorage.getItem(SHORTLIST_KEY);
+    const value = raw ? JSON.parse(raw) : [];
+    return Array.isArray(value) ? value.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeShortlist = (ids) => {
+  localStorage.setItem(SHORTLIST_KEY, JSON.stringify(ids.slice(0, 3)));
+};
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -107,6 +122,7 @@ const Lawyers = () => {
   const [apiError, setApiError] = useState(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedLawyer, setSelectedLawyer] = useState(null);
+  const [shortlistIds, setShortlistIds] = useState(() => readShortlist());
   const [filters, setFilters] = useState({
     search: '',
     specialization: 'all',
@@ -136,6 +152,21 @@ const Lawyers = () => {
     return () => controller.abort();
   }, [loadLawyers]);
 
+  const toggleShortlist = (lawyerId) => {
+    const id = String(lawyerId);
+    setShortlistIds((prev) => {
+      const exists = prev.includes(id);
+      const next = exists ? prev.filter((item) => item !== id) : [...prev, id].slice(-3);
+      writeShortlist(next);
+      return next;
+    });
+  };
+
+  const clearShortlist = () => {
+    setShortlistIds([]);
+    writeShortlist([]);
+  };
+
   const locationOptions = useMemo(() => {
     const unique = new Set();
     lawyers.forEach((lawyer) => {
@@ -161,6 +192,26 @@ const Lawyers = () => {
       return matchesSearch && matchesSpec && matchesLoc;
     });
   }, [filters, lawyers, t]);
+
+  const shortlistedLawyers = useMemo(() => {
+    const index = new Map(lawyers.map((item) => [String(item.id), item]));
+    return shortlistIds.map((id) => index.get(String(id))).filter(Boolean);
+  }, [lawyers, shortlistIds]);
+
+  const compareInsight = useMemo(() => {
+    if (!shortlistedLawyers.length) return null;
+    const best = [...shortlistedLawyers].sort((a, b) => {
+      const winA = (a.cases?.won || 0) / Math.max(1, a.cases?.total || 0);
+      const winB = (b.cases?.won || 0) / Math.max(1, b.cases?.total || 0);
+      const scoreA = (a.rating || 0) * 0.7 + winA * 5 * 0.3;
+      const scoreB = (b.rating || 0) * 0.7 + winB * 5 * 0.3;
+      return scoreB - scoreA;
+    })[0];
+
+    return best
+      ? `${best.name} reyting va yutgan ishlar ulushi bo‘yicha yetakchi.`
+      : null;
+  }, [shortlistedLawyers]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[var(--color-surface-900)] pt-24 pb-20 transition-colors duration-300">
@@ -197,6 +248,67 @@ const Lawyers = () => {
             <span>{apiError}</span>
           </div>
         )}
+
+        <div className="mb-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white inline-flex items-center gap-2">
+                <Scale size={16} className="text-blue-600" />
+                Advokatlarni solishtirish
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                3 tagacha advokat qo‘shib, tajriba, reyting va natijalarni yonma-yon ko‘ring.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                Tanlangan: {shortlistedLawyers.length}/3
+              </span>
+              {!!shortlistedLawyers.length && (
+                <button
+                  type="button"
+                  onClick={clearShortlist}
+                  className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-red-600"
+                >
+                  <X size={12} />
+                  Tozalash
+                </button>
+              )}
+            </div>
+          </div>
+
+          {!!shortlistedLawyers.length && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead className="text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                  <tr>
+                    <th className="text-left py-2 pr-3">Advokat</th>
+                    <th className="text-left py-2 px-3">Reyting</th>
+                    <th className="text-left py-2 px-3">Tajriba</th>
+                    <th className="text-left py-2 px-3">Yutgan ishlar</th>
+                    <th className="text-left py-2 px-3">Aloqa</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shortlistedLawyers.map((lawyer) => (
+                    <tr key={`cmp_${lawyer.id}`} className="border-b border-slate-100 dark:border-slate-800">
+                      <td className="py-2 pr-3 font-semibold text-slate-900 dark:text-white">{lawyer.name}</td>
+                      <td className="py-2 px-3">{lawyer.rating}</td>
+                      <td className="py-2 px-3">{lawyer.experience} yil</td>
+                      <td className="py-2 px-3">{lawyer.cases?.won || 0}/{lawyer.cases?.total || 0}</td>
+                      <td className="py-2 px-3 text-xs text-slate-500">{lawyer.phone || lawyer.email || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {compareInsight && (
+                <p className="mt-3 text-xs text-blue-700 dark:text-blue-300 font-medium">
+                  Tavsiya: {compareInsight}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="flex flex-col md:flex-row gap-8 items-start">
           <div className="w-full md:w-80 flex-shrink-0 sticky top-24">
@@ -301,6 +413,21 @@ const Lawyers = () => {
                       </div>
 
                       <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700 flex gap-3">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleShortlist(lawyer.id);
+                          }}
+                          className={`px-3 py-3 rounded-xl text-xs font-bold border transition-colors ${
+                            shortlistIds.includes(String(lawyer.id))
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300'
+                              : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          {shortlistIds.includes(String(lawyer.id)) ? 'Solishtirishda' : 'Solishtirishga qo‘shish'}
+                        </button>
+
                         <Link
                           to={`/chat/lawyer/${lawyer.id}`}
                           onClick={(e) => e.stopPropagation()}

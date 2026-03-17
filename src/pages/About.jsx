@@ -1,13 +1,42 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Shield, Users, Trophy, Target, CheckCircle2, ArrowRight, UserPlus, Search, MessageSquare, Gavel } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import { useLanguage } from '../context/LanguageContext';
 const MotionDiv = motion.div;
+const readJSON = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 export default function About() {
   const { t } = useLanguage();
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((prev) => prev + 1), 10000);
+    return () => clearInterval(id);
+  }, []);
+
+  const liveMetrics = useMemo(() => {
+    const users = readJSON('advokat_local_users_v1', []);
+    const applications = readJSON('legallink_user_applications_v1', []);
+    const chats = readJSON('advokat_support_conversations_v1', []);
+    const bookings = readJSON('legallink_contact_bookings_v1', []);
+
+    return {
+      users: Array.isArray(users) ? users.length : 0,
+      applications: Array.isArray(applications) ? applications.length : 0,
+      chats: Array.isArray(chats) ? chats.length : 0,
+      bookings: Array.isArray(bookings) ? bookings.length : 0,
+      updatedAt: new Date().toLocaleTimeString(),
+    };
+  }, [tick]);
 
   const stats = [
     { label: t('about_page.stats.exp'), value: "10+", icon: Trophy },
@@ -104,6 +133,25 @@ export default function About() {
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{stat.label}</p>
             </div>
           ))}
+        </div>
+
+        <div className="mb-24 rounded-[2rem] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 md:p-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+            <div>
+              <h3 className="text-2xl font-serif font-bold text-slate-900 dark:text-white">Live Transparency Panel</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Platformadagi faoliyat ko‘rsatkichlari real-time tarzda yangilanadi.</p>
+            </div>
+            <span className="text-xs px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+              Yangilanish: {liveMetrics.updatedAt}
+            </span>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard label="Ro‘yxatdan o‘tganlar" value={liveMetrics.users} />
+            <MetricCard label="Kelgan arizalar" value={liveMetrics.applications} />
+            <MetricCard label="Ochiq chatlar" value={liveMetrics.chats} />
+            <MetricCard label="Bron qilingan slotlar" value={liveMetrics.bookings} />
+          </div>
         </div>
 
         {/* Our Mission Section */}
@@ -228,6 +276,15 @@ export default function About() {
         </div>
 
       </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 px-4 py-4">
+      <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label}</p>
+      <p className="text-3xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
     </div>
   );
 }

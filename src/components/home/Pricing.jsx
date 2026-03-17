@@ -30,9 +30,9 @@ export default function Pricing() {
     {
       id: 'subscription',
       name: 'Hujjat tayyorlash',
-      price: '50,000',
-      period: '/hujjat',
-      priceDesc: 'UZS',
+      price: currency === 'uzs' ? '50,000' : '4',
+      period: currency === 'uzs' ? '/hujjat' : '',
+      priceDesc: currency === 'uzs' ? 'UZS' : 'USD',
       desc: "Barcha turdagi huquqiy hujjatlar, shartnomalar, va da'vo arizalarini professional yuristlar tomonidan tez va sifatli tayyorlash.",
       features: [
         'Tezkor hujjat tayyorlash',
@@ -44,7 +44,7 @@ export default function Pricing() {
       cta: 'Hujjat buyurtma qilish',
       checkout: 'click',
       amountUzs: 50000,
-      amountUsd: 4.5,
+      amountUsd: 4,
       freeNote: '1 ta hujjat tekin',
       discount: '12% chegirma',
       popular: false,

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Lock, MessageCircleMore, RefreshCw, Send, ShieldCheck, Star, UserRound } from 'lucide-react';
+import { AlertTriangle, Loader2, Lock, MessageCircleMore, RefreshCw, Send, ShieldCheck, Star, UserRound } from 'lucide-react';
 import Button from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { lawyers } from '../../data/lawyers';
@@ -74,6 +74,7 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
   const socketRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
+  const isLawyer = user?.role === 'lawyer';
 
   const targetLawyer = useMemo(() => {
     if (!lawyerId) return null;
@@ -132,7 +133,7 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
         const lawyerConversationMissing =
           lawyerId && !list.some((conv) => String(conv.peerId || conv.lawyerId || '') === String(lawyerId));
 
-        if (!isAdmin && (!list.length || lawyerConversationMissing)) {
+        if (!isAdmin && !isLawyer && (!list.length || lawyerConversationMissing)) {
           const created = await ensureSupportConversation({ lawyerId });
           list = [created, ...list.filter((conv) => String(conv.id) !== String(created.id))];
         }
@@ -152,6 +153,7 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
       activeConversationId,
       ensureSupportConversation,
       isAdmin,
+      isLawyer,
       lawyerId,
       listSupportConversations,
       safeError,
@@ -215,6 +217,17 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
     setFeedbackComment('');
     setFeedbackSent(false);
   }, [activeConversationId, isAdmin]);
+
+  const chatBlockedByApproval = useMemo(() => {
+    if (!activeConversation || isAdmin) return false;
+    return Boolean(activeConversation.requiresApproval) && !Boolean(activeConversation.chatApproved);
+  }, [activeConversation, isAdmin]);
+
+  const canSendInActiveConversation = Boolean(
+    activeConversation
+    && !(supportStatusEnabled && activeConversation?.status === 'closed')
+    && !chatBlockedByApproval
+  );
 
   useEffect(() => {
     if (!stickToBottom) return;
@@ -280,6 +293,10 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
 
   const handleSend = async () => {
     if (!activeConversationId || sending) return;
+    if (chatBlockedByApproval) {
+      setError('Chat hali admin tomonidan tasdiqlanmagan');
+      return;
+    }
     const text = inputValue.trim();
     if (!text) return;
 
@@ -425,10 +442,15 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
           ) : conversations.length ? (
             conversations.map((conv) => {
               const isActive = String(conv.id) === String(activeConversationId);
-              const title = isAdmin ? conv.clientName || conv.clientEmail || 'Mijoz' : 'Platforma mutaxassisi';
-              const subtitle =
-                isAdmin && conv.clientEmail
-                  ? conv.clientEmail
+              const title = isAdmin
+                ? conv.clientName || conv.clientEmail || 'Mijoz'
+                : isLawyer
+                  ? conv.clientName || conv.clientEmail || 'Mijoz'
+                  : 'Platforma mutaxassisi';
+              const subtitle = isAdmin && conv.clientEmail
+                ? conv.clientEmail
+                : isLawyer
+                  ? (conv.subject || "Mijoz murojaati")
                   : targetLawyer?.name
                     ? `${targetLawyer.name} bo'yicha`
                     : conv.subject;
@@ -471,11 +493,15 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
       <section className="flex-1 flex flex-col min-h-0">
         <header className="p-4 md:p-5 border-b border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm text-slate-500 dark:text-slate-400">{isAdmin ? 'Chat markazi' : 'Mutaxassis bilan to‘g‘ridan-to‘g‘ri chat'}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {isAdmin ? 'Chat markazi' : isLawyer ? 'Advokat kabineti: mijoz chatlari' : 'Mutaxassis bilan to‘g‘ridan-to‘g‘ri chat'}
+            </p>
             <h2 className="font-bold text-slate-900 dark:text-white truncate">
               {activeConversation
                 ? isAdmin
                   ? activeConversation.clientName || activeConversation.clientEmail || 'Mijoz'
+                  : isLawyer
+                    ? activeConversation.clientName || activeConversation.clientEmail || 'Mijoz'
                   : targetLawyer?.name
                     ? `${targetLawyer.name} bo'yicha yordam`
                     : 'Platforma mutaxassisi'
@@ -527,7 +553,7 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
             </div>
           ) : messages.length ? (
             messages.map((msg) => {
-              const mine = isAdmin ? msg.senderRole === 'admin' : msg.senderRole === 'user';
+              const mine = normalizeParty(msg.senderId) === currentIdentity;
 
               return (
                 <div key={msg.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -587,7 +613,7 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
           </div>
         )}
 
-        {!isAdmin && activeConversation && (
+        {!isAdmin && !isLawyer && activeConversation && (
           <div className="px-4 pb-2">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Suhbat sifati</p>
@@ -641,18 +667,24 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder="Xabaringizni yozing..."
-              disabled={!activeConversation || sending || (supportStatusEnabled && activeConversation?.status === 'closed')}
+              disabled={!canSendInActiveConversation || sending}
               className="flex-1 resize-none rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/70 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-60"
             />
             <Button
               type="button"
               onClick={handleSend}
-              disabled={!inputValue.trim() || !activeConversation || sending || (supportStatusEnabled && activeConversation?.status === 'closed')}
+              disabled={!inputValue.trim() || sending || !canSendInActiveConversation}
               className="btn-primary h-[46px] px-4"
             >
               {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </Button>
           </div>
+          {chatBlockedByApproval && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 inline-flex items-center gap-1.5">
+              <AlertTriangle size={13} />
+              Admin chatga ruxsat berishini kuting. Ruxsat berilgach yozishma ochiladi.
+            </p>
+          )}
           {supportStatusEnabled && activeConversation?.status === 'closed' && (
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
               Suhbat yopilgan. Yangi yozishma uchun mutaxassis bu suhbatni qayta ochishi kerak.

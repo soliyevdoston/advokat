@@ -10,6 +10,8 @@ const USER_KEY = 'advokat_user';
 const LOCAL_USERS_KEY = 'advokat_local_users_v1';
 const SUPPORT_CONVERSATIONS_KEY = 'advokat_support_conversations_v1';
 const SUPPORT_MESSAGES_KEY = 'advokat_support_messages_v1';
+const SUPPORT_APPROVALS_KEY = 'advokat_support_approvals_v1';
+const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
 
 const readJSON = (key, fallback = null) => {
   try {
@@ -104,6 +106,8 @@ const saveConversations = (conversations) => writeJSON(SUPPORT_CONVERSATIONS_KEY
 
 const loadMessages = () => readJSON(SUPPORT_MESSAGES_KEY, []);
 const saveMessages = (messages) => writeJSON(SUPPORT_MESSAGES_KEY, messages);
+const loadSupportApprovals = () => readJSON(SUPPORT_APPROVALS_KEY, {});
+const saveSupportApprovals = (approvals) => writeJSON(SUPPORT_APPROVALS_KEY, approvals);
 
 const toSorted = (items, key = 'updatedAt') => {
   return [...items].sort((a, b) => new Date(b[key] || 0).getTime() - new Date(a[key] || 0).getTime());
@@ -126,6 +130,14 @@ const normalizeConversation = (conv = {}) => ({
   participantA: conv.participantA || null,
   participantB: conv.participantB || null,
   peerId: conv.peerId || null,
+  requiresApproval: typeof conv.requiresApproval === 'boolean'
+    ? conv.requiresApproval
+    : Boolean(conv.lawyerId || conv.peerId?.toString?.().startsWith('lawyer_')),
+  chatApproved: typeof conv.chatApproved === 'boolean'
+    ? conv.chatApproved
+    : !Boolean(conv.lawyerId || conv.peerId?.toString?.().startsWith('lawyer_')),
+  approvedBy: conv.approvedBy || null,
+  approvalUpdatedAt: conv.approvalUpdatedAt || conv.approvedAt || null,
 });
 
 const normalizeMessage = (msg = {}) => ({
@@ -144,6 +156,7 @@ const SEND_CODE_ENDPOINTS = ['/auth/send-code', '/send-code', '/users/send-code'
 const VERIFY_CODE_ENDPOINTS = ['/auth/verify-code', '/verify-code', '/users/verify-code'];
 const REGISTER_ENDPOINTS = ['/auth/register', '/users/register'];
 const CREATE_ADMIN_ENDPOINTS = ['/users/create_admin', '/users/create-admin', '/create_admin'];
+const CREATE_LAWYER_ENDPOINTS = ['/users/create_lawyer', '/users/create-lawyer', '/create_lawyer'];
 const USERS_ENDPOINTS = ['/users/', '/users', '/auth/users'];
 
 const normalizeParty = (value) => {
@@ -174,6 +187,48 @@ const parseConversationId = (value) => {
   const parts = String(value).split('|');
   if (parts.length !== 3) return null;
   return { a: parts[1], b: parts[2] };
+};
+
+const normalizeApprovalMap = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
+};
+
+const applySupportApproval = (conversation) => {
+  const normalized = normalizeConversation(conversation);
+  if (!normalized.requiresApproval) {
+    return { ...normalized, chatApproved: true };
+  }
+
+  const approvalMap = normalizeApprovalMap(loadSupportApprovals());
+  const approval = approvalMap[String(normalized.id)];
+  if (!approval) return normalized;
+
+  return {
+    ...normalized,
+    chatApproved: Boolean(approval.approved),
+    approvedBy: approval.approvedBy || normalized.approvedBy || null,
+    approvalUpdatedAt: approval.updatedAt || normalized.approvalUpdatedAt || null,
+  };
+};
+
+const conversationMatchesLawyer = (conversation, currentUser) => {
+  if (!conversation || !currentUser) return false;
+  const keys = [
+    String(currentUser.lawyerId || '').trim(),
+    String(currentUser.email || '').trim(),
+    String(currentUser.id || '').trim(),
+  ].filter(Boolean);
+  if (!keys.length) return false;
+
+  const pair = parseConversationId(conversation.id);
+  const pairValues = pair ? [pair.a, pair.b] : [];
+
+  return keys.some((key) => (
+    String(conversation.lawyerId || '') === key
+    || String(conversation.peerId || '') === key
+    || pairValues.includes(key)
+  ));
 };
 
 const normalizeChatRow = (row = {}) => {
@@ -251,7 +306,7 @@ const buildConversationsFromChats = (rows, currentUser) => {
     });
   });
 
-  return toSorted(conversations, 'updatedAt');
+  return toSorted(conversations.map(applySupportApproval), 'updatedAt');
 };
 
 const seedLocalAdmin = () => {
@@ -343,6 +398,17 @@ const ensureLocalConversation = ({ currentUser, lawyerId = null }) => {
 
   if (existing) return normalizeConversation(existing);
 
+  const relatedApplications = readJSON(LOCAL_APPLICATIONS_KEY, []);
+  const approvedFromApplications = Boolean(lawyerId) && relatedApplications.some((item) => {
+    const appLawyerId = String(item?.assignedLawyerId || item?.lawyerId || '').trim();
+    const appUserEmail = String(item?.userEmail || item?.clientEmail || '').trim().toLowerCase();
+    return (
+      appLawyerId === String(lawyerId).trim()
+      && appUserEmail === String(currentUser.email || '').trim().toLowerCase()
+      && item?.chatApproved === true
+    );
+  });
+
   const newConversation = normalizeConversation({
     id: `conv_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
     clientId: currentUser.id,
@@ -351,6 +417,8 @@ const ensureLocalConversation = ({ currentUser, lawyerId = null }) => {
     subject: lawyerId ? `Advokat #${lawyerId} bo'yicha murojaat` : 'Platforma mutaxassisi bilan chat',
     status: 'open',
     lawyerId: lawyerId || null,
+    requiresApproval: Boolean(lawyerId),
+    chatApproved: lawyerId ? approvedFromApplications : true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     unreadForAdmin: 1,
@@ -367,7 +435,11 @@ const ensureLocalConversation = ({ currentUser, lawyerId = null }) => {
       senderId: 'system',
       senderRole: 'admin',
       senderName: 'Platforma admini',
-      text: 'Assalomu alaykum. Murojaatingiz qabul qilindi. Tez orada sizga yordam beramiz.',
+      text: lawyerId
+        ? (approvedFromApplications
+            ? 'Murojaatingiz bo‘yicha chat ochildi. Advokat bilan yozishishingiz mumkin.'
+            : 'Murojaatingiz qabul qilindi. Admin tasdiqlaganidan keyin advokat bilan chat ochiladi.')
+        : 'Assalomu alaykum. Murojaatingiz qabul qilindi. Tez orada sizga yordam beramiz.',
       createdAt: new Date().toISOString(),
     })
   );
@@ -584,6 +656,63 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const createLawyerAccount = async ({ email, password, name = '', lawyerId = null } = {}) => {
+    if (user?.role !== 'admin') {
+      throw new Error('Faqat admin advokat akkaunti yarata oladi');
+    }
+
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedPassword = String(password || '').trim();
+    if (!normalizedEmail) throw new Error('Advokat emailini kiriting');
+    if (normalizedPassword.length < 6) throw new Error('Parol kamida 6 ta belgidan iborat bo‘lishi kerak');
+
+    try {
+      const data = await apiRequestAny(CREATE_LAWYER_ENDPOINTS, {
+        method: 'POST',
+        token: authToken,
+        body: { email: normalizedEmail, password: normalizedPassword, name, lawyerId },
+      });
+      return data;
+    } catch {
+      if (!USE_LOCAL_FALLBACK) {
+        throw new Error('Advokat akkauntini API orqali yaratib bo‘lmadi');
+      }
+
+      const users = loadLocalUsers();
+      const idx = users.findIndex((u) => String(u.email || '').toLowerCase() === normalizedEmail);
+
+      if (idx >= 0) {
+        users[idx] = {
+          ...users[idx],
+          email: normalizedEmail,
+          name: name || users[idx].name || normalizedEmail.split('@')[0],
+          password: normalizedPassword,
+          role: 'lawyer',
+          lawyerId: lawyerId || users[idx].lawyerId || null,
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
+        users.push({
+          id: `local_lawyer_${Date.now()}`,
+          email: normalizedEmail,
+          name: name || normalizedEmail.split('@')[0],
+          password: normalizedPassword,
+          role: 'lawyer',
+          lawyerId: lawyerId || null,
+          source: 'local',
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      saveLocalUsers(users);
+      return {
+        success: true,
+        fallback: true,
+        user: normalizeUser(users[idx >= 0 ? idx : users.length - 1]),
+      };
+    }
+  };
+
   const getAllUsers = async () => {
     if (!authToken) {
       throw new Error('Token topilmadi. Avval admin sifatida kiring.');
@@ -623,10 +752,12 @@ export const AuthProvider = ({ children }) => {
       return buildConversationsFromChats(rows, user);
     } catch (err) {
       if (!USE_LOCAL_FALLBACK) throw err;
-      const all = loadConversations().map(normalizeConversation);
+      const all = loadConversations().map(applySupportApproval);
       const filtered = user.role === 'admin'
         ? all
-        : all.filter((conv) => String(conv.clientId) === String(user.id));
+        : user.role === 'lawyer'
+          ? all.filter((conv) => conversationMatchesLawyer(conv, user))
+          : all.filter((conv) => String(conv.clientId) === String(user.id));
 
       return toSorted(filtered);
     }
@@ -710,6 +841,12 @@ export const AuthProvider = ({ children }) => {
       receiver: peer === 'admin' ? null : peer,
     };
 
+    const approvalMap = normalizeApprovalMap(loadSupportApprovals());
+    const approval = approvalMap[String(conversationId)];
+    if (user.role !== 'admin' && approval && approval.approved === false) {
+      throw new Error('Chat hali admin tomonidan tasdiqlanmagan');
+    }
+
     try {
       const data = await apiRequest(CHAT_ENDPOINT, {
         method: 'POST',
@@ -734,6 +871,10 @@ export const AuthProvider = ({ children }) => {
       const convIndex = conversations.findIndex((c) => String(c.id) === String(conversationId));
 
       if (convIndex < 0) throw new Error('Suhbat topilmadi');
+      const current = applySupportApproval(conversations[convIndex]);
+      if (user.role !== 'admin' && current.requiresApproval && !current.chatApproved) {
+        throw new Error('Chat hali admin tomonidan tasdiqlanmagan');
+      }
 
       const message = normalizeMessage({
         id: `msg_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
@@ -749,7 +890,6 @@ export const AuthProvider = ({ children }) => {
       messages.push(message);
       saveMessages(messages);
 
-      const current = normalizeConversation(conversations[convIndex]);
       const updated = {
         ...current,
         lastMessage: message.text,
@@ -763,6 +903,60 @@ export const AuthProvider = ({ children }) => {
 
       return message;
     }
+  };
+
+  const setSupportConversationApproval = async (conversationId, approved, meta = {}) => {
+    if (!user || user.role !== 'admin') {
+      throw new Error('Faqat admin chat ruxsatini boshqara oladi');
+    }
+
+    const key = String(conversationId || '').trim();
+    if (!key) throw new Error('Conversation ID topilmadi');
+
+    const approvals = normalizeApprovalMap(loadSupportApprovals());
+    approvals[key] = {
+      approved: Boolean(approved),
+      approvedBy: user.email || 'admin',
+      updatedAt: new Date().toISOString(),
+      lawyerId: meta?.lawyerId || approvals[key]?.lawyerId || null,
+    };
+    saveSupportApprovals(approvals);
+
+    if (!USE_LOCAL_FALLBACK) {
+      return applySupportApproval({
+        id: key,
+        lawyerId: meta?.lawyerId || null,
+        requiresApproval: true,
+        chatApproved: Boolean(approved),
+      });
+    }
+
+    const conversations = loadConversations();
+    const idx = conversations.findIndex((c) => String(c.id) === key);
+
+    if (idx >= 0) {
+      conversations[idx] = {
+        ...normalizeConversation(conversations[idx]),
+        requiresApproval: true,
+        chatApproved: Boolean(approved),
+        approvedBy: user.email || 'admin',
+        approvalUpdatedAt: approvals[key].updatedAt,
+        updatedAt: new Date().toISOString(),
+      };
+      saveConversations(conversations);
+      return applySupportApproval(conversations[idx]);
+    }
+
+    return applySupportApproval({
+      id: key,
+      lawyerId: meta?.lawyerId || null,
+      requiresApproval: true,
+      chatApproved: Boolean(approved),
+      approvedBy: user.email || 'admin',
+      approvalUpdatedAt: approvals[key].updatedAt,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
   };
 
   const setSupportConversationStatus = async (conversationId, status) => {
@@ -796,12 +990,14 @@ export const AuthProvider = ({ children }) => {
 
   const isAuthenticated = Boolean(authToken && user);
   const isAdmin = user?.role === 'admin';
+  const isLawyer = user?.role === 'lawyer';
 
   const value = {
     user,
     authToken,
     isAuthenticated,
     isAdmin,
+    isLawyer,
     apiBase: API_BASE_URL,
     localFallbackEnabled: USE_LOCAL_FALLBACK,
     supportStatusEnabled: USE_LOCAL_FALLBACK,
@@ -812,11 +1008,13 @@ export const AuthProvider = ({ children }) => {
     logout,
     setManualToken,
     createAdmin,
+    createLawyerAccount,
     getAllUsers,
     listSupportConversations,
     ensureSupportConversation,
     getSupportMessages,
     sendSupportMessage,
+    setSupportConversationApproval,
     setSupportConversationStatus,
     safeError,
   };
