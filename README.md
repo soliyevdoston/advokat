@@ -7,9 +7,9 @@ Bu loyiha frontend qismi bo'lib, backend API bilan ishlashga moslangan.
 `.env` fayl oching (yoki `.env.example`dan nusxa oling):
 
 ```env
-VITE_API_BASE_URL=http://localhost:3000
+VITE_API_BASE_URL=https://advokat-1.onrender.com
 VITE_ENABLE_LOCAL_FALLBACK=false
-VITE_SOCKET_BASE_URL=http://localhost:3000
+VITE_SOCKET_BASE_URL=https://advokat-1.onrender.com
 VITE_SOCKET_PATH=/socket.io
 ```
 
