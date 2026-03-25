@@ -590,7 +590,7 @@ export default function AdminDashboard() {
       !error,
       !opsError,
       authToken?.length > 10,
-      apiBase?.startsWith('http'),
+      apiBase?.startsWith('http') || apiBase?.startsWith('/'),
     ];
     const ok = checks.filter(Boolean).length;
     return Math.round((ok / checks.length) * 100);

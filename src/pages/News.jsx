@@ -6,6 +6,16 @@ import { buildApiUrl } from '../config/appConfig';
 const NEWS_ENDPOINTS = ['/news', '/api/news'];
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=2000';
 const SAVED_NEWS_KEY = 'legallink_saved_news_v1';
+const TOKEN_KEY = 'advokat_auth_token';
+
+const getAuthHeaders = () => {
+  try {
+    const token = localStorage.getItem(TOKEN_KEY);
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+};
 
 const FALLBACK_NEWS = [
   {
@@ -65,7 +75,11 @@ async function fetchNewsAny() {
 
   for (const endpoint of NEWS_ENDPOINTS) {
     try {
-      const response = await fetch(buildApiUrl(endpoint));
+      const response = await fetch(buildApiUrl(endpoint), {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -77,7 +91,7 @@ async function fetchNewsAny() {
       return parseNewsPayload(data);
     } catch (err) {
       lastError = err;
-      if (err?.status === 404 || err?.status === 405) continue;
+      if (err?.status === 401 || err?.status === 403 || err?.status === 404 || err?.status === 405) continue;
       throw err;
     }
   }

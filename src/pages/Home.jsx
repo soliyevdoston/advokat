@@ -4,7 +4,6 @@ import InteractiveHighlights from '../components/home/InteractiveHighlights';
 import InnovationLab from '../components/home/InnovationLab';
 import Services from '../components/home/Services';
 import News from '../components/home/News';
-import Chatbots from '../components/home/Chatbots';
 import Testimonials from '../components/home/Testimonials';
 import Pricing from '../components/home/Pricing';
 import FAQ from '../components/home/FAQ';
@@ -20,7 +19,6 @@ export default function Home() {
       <Services />
       <Constitution />
       <Pricing />
-      <Chatbots />
       <News />
       <Testimonials />
       <FAQ />

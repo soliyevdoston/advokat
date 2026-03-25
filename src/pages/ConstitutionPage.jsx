@@ -6,6 +6,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { buildApiUrl } from '../config/appConfig';
 const MotionH1 = motion.h1;
 const MotionDiv = motion.div;
+const TOKEN_KEY = 'advokat_auth_token';
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -52,7 +53,12 @@ const parseArticles = (data, sectionsPayload = null) => {
 };
 
 async function fetchJson(url) {
-  const response = await fetch(url);
+  const token = localStorage.getItem(TOKEN_KEY);
+  const response = await fetch(url, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {

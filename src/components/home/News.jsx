@@ -6,6 +6,16 @@ import { buildApiUrl } from '../../config/appConfig';
 
 const NEWS_ENDPOINTS = ['/news', '/api/news'];
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=1200';
+const TOKEN_KEY = 'advokat_auth_token';
+
+const getAuthHeaders = () => {
+  try {
+    const token = localStorage.getItem(TOKEN_KEY);
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+};
 
 const parsePayload = (payload) => {
   const list = Array.isArray(payload) ? payload : payload?.news || payload?.data || payload?.items || [];
@@ -25,7 +35,11 @@ async function fetchNewsPreview() {
 
   for (const endpoint of NEWS_ENDPOINTS) {
     try {
-      const response = await fetch(buildApiUrl(endpoint));
+      const response = await fetch(buildApiUrl(endpoint), {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         const err = new Error(data?.message || data?.error || `Server xatosi: ${response.status}`);
@@ -35,7 +49,7 @@ async function fetchNewsPreview() {
       return parsePayload(data);
     } catch (err) {
       lastError = err;
-      if (err?.status === 404 || err?.status === 405) continue;
+      if (err?.status === 401 || err?.status === 403 || err?.status === 404 || err?.status === 405) continue;
       throw err;
     }
   }

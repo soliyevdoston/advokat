@@ -26,9 +26,15 @@ export default function ChatPage() {
     const payload = readQuickLegalCheck();
     if (!payload?.target) return null;
 
-    const targetPath = String(payload.target);
+    const targetPath = String(payload.target).replace(/\/$/, '');
+    const pathname = String(location.pathname || '').replace(/\/$/, '');
     const currentPath = `/chat/${resolvedType}`;
-    const isMatch = targetPath === currentPath || (resolvedType === 'ai' && targetPath === '/chat/ai' && location.pathname === '/chat');
+    const isMatch = (
+      targetPath === pathname
+      || targetPath === currentPath
+      || (resolvedType === 'ai' && targetPath === '/chat/ai' && pathname === '/chat')
+      || (resolvedType === 'lawyer' && pathname.startsWith('/chat/lawyer') && targetPath.startsWith('/chat/lawyer'))
+    );
     if (!isMatch) return null;
 
     clearQuickLegalCheck();
@@ -123,6 +129,7 @@ export default function ChatPage() {
           initialMessage={initial}
           initialUserPrompt={quickPrompt || quickCheckPayload?.prompt || ''}
           quickCheckTitle={quickCheckPayload?.recommendationTitle || ''}
+          quickCheckPayload={quickCheckPayload}
         />
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import { Send, Paperclip, Bot, User, MoreVertical, Phone, Video, Search, Smile, Loader2, AlertCircle, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -7,6 +7,8 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { buildApiUrl } from '../../config/appConfig';
 import { DOCUMENT_FREE_QUOTA_KEY } from '../../utils/documentQuota';
+import { saveQuickLegalCheck } from '../../utils/quickLegalCheck';
+import { lawyers } from '../../data/lawyers';
 const MotionDiv = motion.div;
 
 // Chat turlariga mos endpoint
@@ -73,6 +75,50 @@ const confidenceTone = (value) => {
   return 'low';
 };
 
+const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
+const PRO_DEFAULT_PRICE_UZS = 149000;
+
+const SPECIALIZATION_LABELS = {
+  inheritance: 'Meros huquqi',
+  criminal: 'Jinoyat ishlari',
+  civil: 'Fuqarolik ishlari',
+  business: 'Biznes huquqi',
+  labor: 'Mehnat huquqi',
+  international: 'Xalqaro huquq',
+  family: 'Oilaviy huquq',
+};
+
+const TOPIC_TO_SPECIALIZATIONS = {
+  document: ['civil', 'business'],
+  consult: ['civil', 'family', 'labor'],
+  dispute: ['criminal', 'civil'],
+};
+
+const pickLawyerByTopic = (topic) => {
+  const key = String(topic || 'consult').toLowerCase();
+  const priorities = TOPIC_TO_SPECIALIZATIONS[key] || TOPIC_TO_SPECIALIZATIONS.consult;
+
+  const preferred = lawyers
+    .filter((lawyer) => priorities.includes(String(lawyer.specialization || '').toLowerCase()))
+    .sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
+
+  return preferred[0] || lawyers[0] || null;
+};
+
+const readApplications = () => {
+  try {
+    const raw = localStorage.getItem(LOCAL_APPLICATIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveApplications = (items) => {
+  localStorage.setItem(LOCAL_APPLICATIONS_KEY, JSON.stringify(items));
+};
+
 export default function ChatInterface({
   title,
   subtitle,
@@ -80,6 +126,7 @@ export default function ChatInterface({
   initialMessage,
   initialUserPrompt = '',
   quickCheckTitle = '',
+  quickCheckPayload = null,
 }) {
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -97,6 +144,26 @@ export default function ChatInterface({
   const [freeDocumentRemaining, setFreeDocumentRemaining] = useState(true);
   const messagesContainerRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
+
+  const quickTopic = useMemo(() => {
+    if (quickCheckPayload?.topic) return String(quickCheckPayload.topic);
+    if (type === 'document') return 'document';
+    return 'consult';
+  }, [quickCheckPayload?.topic, type]);
+
+  const recommendedLawyer = useMemo(() => pickLawyerByTopic(quickTopic), [quickTopic]);
+
+  const isProMode = useMemo(() => {
+    return Boolean(
+      quickCheckPayload?.isPro
+      || quickCheckPayload?.style === 'expert'
+      || quickCheckPayload?.urgency === 'high'
+      || quickCheckPayload?.topic === 'dispute'
+    );
+  }, [quickCheckPayload]);
+
+  const proPriceUzs = Number(quickCheckPayload?.proPriceUzs) || PRO_DEFAULT_PRICE_UZS;
+  const proPriceLabel = quickCheckPayload?.proPriceLabel || `${proPriceUzs.toLocaleString('ru-RU')} UZS`;
 
   const allContacts = [
     { id: 'ai', name: t('chat_interface.roles.ai'), status: 'online', type: 'ai' },
@@ -250,6 +317,112 @@ export default function ChatInterface({
       setHandoffLoading(false);
     }
   }, [ensureSupportConversation, navigate, safeError, sendSupportMessage, user]);
+
+  const sendApplicationToApi = useCallback(async (payload) => {
+    const endpoints = ['/applications', '/requests', '/documents', '/api/applications'];
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(buildApiUrl(endpoint), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          return await response.json().catch(() => payload);
+        }
+
+        if (response.status === 404 || response.status === 405) {
+          continue;
+        }
+      } catch {
+        // endpoint bo'yicha xatoni yutamiz, keyingisini sinaymiz
+      }
+    }
+
+    return null;
+  }, [authToken]);
+
+  const createLawyerApplication = useCallback(async (lawyer, noteText) => {
+    if (!lawyer || !user) return null;
+
+    const payload = {
+      id: `local_ai_app_${Date.now()}`,
+      title: 'AI orqali yuborilgan ariza',
+      subject: `${quickTopic} bo'yicha murojaat`,
+      type: quickTopic,
+      description: noteText,
+      text: noteText,
+      status: 'new',
+      createdAt: new Date().toISOString(),
+      userEmail: user?.email || '',
+      userId: user?.id || null,
+      assignedLawyerId: lawyer.id,
+      assignedLawyerEmail: lawyer.email || '',
+      assignedLawyerName: lawyer.name || '',
+      chatApproved: false,
+      source: 'ai_triage',
+      proMode: isProMode,
+      proPriceUzs,
+    };
+
+    const remote = await sendApplicationToApi(payload);
+    const created = remote?.application || remote?.document || remote?.data || remote || payload;
+    const current = readApplications();
+    saveApplications([created, ...current]);
+    return created;
+  }, [isProMode, proPriceUzs, quickTopic, sendApplicationToApi, user]);
+
+  const connectToLawyer = useCallback(async () => {
+    if (!recommendedLawyer) return;
+
+    const recentUserContext = messages
+      .filter((item) => item.sender === 'user')
+      .slice(-3)
+      .map((item) => `- ${item.text}`)
+      .join('\n');
+
+    const summary = [
+      "AI chatdan advokatga yo'naltirilgan ariza",
+      quickCheckTitle ? `Yo'nalish: ${quickCheckTitle}` : '',
+      `Mavzu: ${quickTopic}`,
+      isProMode ? `Tarif: Pro (${proPriceLabel})` : 'Tarif: Standard',
+      '',
+      'Mijozning so‘nggi xabarlari:',
+      recentUserContext || `- ${String(initialUserPrompt || '').trim() || 'Murojaat matni yuborilmagan'}`,
+    ].filter(Boolean).join('\n');
+
+    await createLawyerApplication(recommendedLawyer, summary);
+
+    saveQuickLegalCheck({
+      ...(quickCheckPayload || {}),
+      target: `/chat/lawyer/${recommendedLawyer.id}`,
+      recommendationTitle: `${recommendedLawyer.name} bilan chat`,
+      prompt: summary,
+      topic: quickTopic,
+      isPro: isProMode,
+      proPriceUzs,
+      proPriceLabel,
+    });
+
+    navigate(`/chat/lawyer/${recommendedLawyer.id}`);
+  }, [
+    createLawyerApplication,
+    initialUserPrompt,
+    isProMode,
+    messages,
+    navigate,
+    proPriceLabel,
+    proPriceUzs,
+    quickCheckPayload,
+    quickCheckTitle,
+    quickTopic,
+    recommendedLawyer,
+  ]);
 
   const sendMessage = useCallback(async (rawText) => {
     const text = String(rawText || '').trim();
@@ -644,12 +817,48 @@ export default function ChatInterface({
                 {handoffLoading ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
                 Mutaxassisga ulash
               </Button>
-              {handoffError && (
-                <span className="text-xs text-red-500 dark:text-red-400 inline-flex items-center gap-1">
-                  <AlertCircle size={13} />
-                  {handoffError}
-                </span>
-              )}
+            </div>
+          )}
+          {(type === 'ai' || type === 'document') && recommendedLawyer && (
+            <div className="mt-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-900/20 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {quickTopic === 'document' ? 'Hujjat yo‘nalishi bo‘yicha advokat' : 'Mos advokat tavsiyasi'}
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                    {recommendedLawyer.name} · {SPECIALIZATION_LABELS[recommendedLawyer.specialization] || recommendedLawyer.specialization}
+                  </p>
+                  {isProMode && (
+                    <p className="text-xs mt-1 font-semibold text-rose-700 dark:text-rose-300">
+                      Pro narx: {proPriceLabel}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant={isProMode ? 'outline' : 'primary'}
+                    onClick={() => {
+                      void connectToLawyer();
+                    }}
+                    className="text-xs py-2 h-auto"
+                  >
+                    {isProMode ? 'Pro: advokat chatiga o‘tish' : 'Advokat chatiga o‘tish'}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                Bu tugma bosilganda ariza tanlangan advokat kabinetiga yuboriladi.
+              </p>
+            </div>
+          )}
+          {handoffError && (
+            <div className="mt-2">
+              <span className="text-xs text-red-500 dark:text-red-400 inline-flex items-center gap-1">
+                <AlertCircle size={13} />
+                {handoffError}
+              </span>
             </div>
           )}
           <div className="text-center mt-2">

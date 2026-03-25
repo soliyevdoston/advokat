@@ -27,15 +27,21 @@ const STYLE_OPTIONS = [
   { value: 'expert', label: 'Darhol mutaxassis kerak' },
 ];
 
+const PRO_PRICE_UZS = 149000;
+const PRO_PRICE_LABEL = '149 000 UZS';
+
 const getRecommendation = ({ urgency, topic, style }) => {
   if (urgency === 'high' || topic === 'dispute' || style === 'expert') {
     return {
       title: 'Sizga tezkor advokat ulanish tavsiya qilinadi',
-      desc: 'Murakkab yoki shoshilinch holat. Support chat orqali mutaxassis/advokatga darhol yo\'naltirilasiz.',
-      to: '/chat/support',
-      cta: 'Advokatga ulash',
+      desc: 'Murakkab yoki shoshilinch holat. AI triage dan keyin mos advokatga avtomatik yo‘naltirilasiz.',
+      to: '/chat/ai',
+      cta: 'Pro rejimda boshlash',
       icon: Scale,
       tone: 'rose',
+      isPro: true,
+      proPriceUzs: PRO_PRICE_UZS,
+      proPriceLabel: PRO_PRICE_LABEL,
     };
   }
 
@@ -47,6 +53,7 @@ const getRecommendation = ({ urgency, topic, style }) => {
       cta: 'Hujjat yaratish',
       icon: ShieldCheck,
       tone: 'emerald',
+      isPro: false,
     };
   }
 
@@ -57,6 +64,7 @@ const getRecommendation = ({ urgency, topic, style }) => {
     cta: 'AI bilan boshlash',
     icon: Bot,
     tone: 'blue',
+    isPro: false,
   };
 };
 
@@ -77,6 +85,9 @@ export default function InteractiveHighlights() {
       target: recommendation.to,
       recommendationTitle: recommendation.title,
       prompt: formatQuickCheckPrompt({ urgency, topic, style }),
+      isPro: Boolean(recommendation.isPro),
+      proPriceUzs: recommendation.proPriceUzs || 0,
+      proPriceLabel: recommendation.proPriceLabel || '',
     };
 
     saveQuickLegalCheck(payload);
@@ -142,8 +153,18 @@ export default function InteractiveHighlights() {
             }`}>
               <div className="flex items-start justify-between gap-4">
                 <div>
+                  {recommendation.isPro && (
+                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-2 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800 mb-2">
+                      Pro
+                    </span>
+                  )}
                   <p className="font-semibold text-slate-900 dark:text-white">{recommendation.title}</p>
                   <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">{recommendation.desc}</p>
+                  {recommendation.isPro && (
+                    <p className="text-xs font-semibold text-rose-700 dark:text-rose-300 mt-2">
+                      Narx: {recommendation.proPriceLabel} (Pro)
+                    </p>
+                  )}
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-white/80 dark:bg-slate-800 flex items-center justify-center shrink-0">
                   <RecIcon size={18} className="text-slate-700 dark:text-slate-200" />

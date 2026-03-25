@@ -3,6 +3,9 @@ import { AlertTriangle, ArrowRight, BadgeCheck, FileClock, Sparkles } from 'luci
 import { Link } from 'react-router-dom';
 import { saveQuickLegalCheck } from '../../utils/quickLegalCheck';
 
+const PRO_PRICE_UZS = 149000;
+const PRO_PRICE_LABEL = '149 000 UZS';
+
 const urgencyWeights = {
   low: 20,
   medium: 55,
@@ -31,11 +34,12 @@ export default function InnovationLab() {
   }, [form.evidence, form.urgency]);
 
   const recommendation = useMemo(() => {
-    if (form.urgency === 'high' || score >= 80) {
+    if (form.urgency === 'high' || score >= 80 || form.style === 'expert' || form.topic === 'dispute') {
       return {
-        title: 'Darhol mutaxassis bilan chat oching',
-        desc: 'Vaziyat shoshilinch. Hozirning o‘zida support chatga o‘tib dalillarni yuboring.',
-        target: '/chat/support',
+        title: 'Pro rejim: darhol advokatga yo‘naltirish',
+        desc: `Vaziyat shoshilinch yoki murakkab. AI triage va advokat ulanish narxi: ${PRO_PRICE_LABEL}.`,
+        target: '/chat/ai',
+        isPro: true,
       };
     }
 
@@ -44,6 +48,7 @@ export default function InnovationLab() {
         title: 'Avval hujjat draftini tayyorlang',
         desc: 'Hujjat bo‘yicha struktura va matnni tez olish uchun document chatdan boshlang.',
         target: '/chat/document',
+        isPro: false,
       };
     }
 
@@ -51,8 +56,9 @@ export default function InnovationLab() {
       title: 'AI bilan boshlang, keyin advokatga o‘ting',
       desc: 'Masalani AI orqali aniqlab, kerak bo‘lsa advokatga eskalatsiya qiling.',
       target: '/chat/ai',
+      isPro: false,
     };
-  }, [form.topic, form.urgency, score]);
+  }, [form.style, form.topic, form.urgency, score]);
 
   const handlePrepare = () => {
     saveQuickLegalCheck({
@@ -61,6 +67,9 @@ export default function InnovationLab() {
       style: form.style,
       recommendationTitle: recommendation.title,
       target: recommendation.target,
+      isPro: Boolean(recommendation.isPro),
+      proPriceUzs: recommendation.isPro ? PRO_PRICE_UZS : 0,
+      proPriceLabel: recommendation.isPro ? PRO_PRICE_LABEL : '',
     });
   };
 
@@ -150,6 +159,9 @@ export default function InnovationLab() {
                   {recommendation.title}
                 </p>
                 <p className="text-sm text-blue-100 mt-1 leading-relaxed">{recommendation.desc}</p>
+                {recommendation.isPro && (
+                  <p className="text-xs text-amber-200 mt-2 font-semibold">Pro narx: {PRO_PRICE_LABEL}</p>
+                )}
               </div>
 
               <div className="mt-5 flex flex-wrap gap-3">

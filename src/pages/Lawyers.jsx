@@ -11,6 +11,16 @@ const MotionDiv = motion.div;
 const LAWYER_ENDPOINTS = ['/lawyers', '/api/lawyers'];
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=800';
 const SHORTLIST_KEY = 'legallink_lawyer_shortlist_v1';
+const TOKEN_KEY = 'advokat_auth_token';
+
+const getAuthHeaders = () => {
+  try {
+    const token = localStorage.getItem(TOKEN_KEY);
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+};
 
 const readShortlist = () => {
   try {
@@ -94,7 +104,12 @@ async function fetchLawyersAny(signal) {
 
   for (const endpoint of LAWYER_ENDPOINTS) {
     try {
-      const response = await fetch(buildApiUrl(endpoint), { signal });
+      const response = await fetch(buildApiUrl(endpoint), {
+        signal,
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -107,7 +122,7 @@ async function fetchLawyersAny(signal) {
     } catch (err) {
       lastError = err;
       if (err?.name === 'AbortError') throw err;
-      if (err?.status === 404 || err?.status === 405) continue;
+      if (err?.status === 401 || err?.status === 403 || err?.status === 404 || err?.status === 405) continue;
       throw err;
     }
   }
