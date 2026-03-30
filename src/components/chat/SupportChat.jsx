@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Loader2, Lock, MessageCircleMore, RefreshCw, Send, ShieldCheck, Star, UserRound } from 'lucide-react';
+import { AlertTriangle, FileText, Loader2, Lock, MessageCircleMore, Paperclip, RefreshCw, Send, ShieldCheck, Star, UserRound, X } from 'lucide-react';
 import Button from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { lawyers } from '../../data/lawyers';
@@ -42,6 +42,53 @@ const parsePairId = (value) => {
   return { a: parts[1], b: parts[2] };
 };
 
+const ATTACHMENT_MARKER = '\n[[LEGALLINK_ATTACHMENTS]]';
+const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+const MAX_ATTACHMENT_COUNT = 3;
+
+const formatFileSize = (bytes) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const fileToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Faylni o‘qib bo‘lmadi'));
+    reader.readAsDataURL(file);
+  });
+
+const encodeMessageWithAttachments = (text, attachments = []) => {
+  if (!attachments.length) return text;
+  const payload = attachments.map((item) => ({
+    name: item.name,
+    type: item.type,
+    size: item.size,
+    dataUrl: item.dataUrl,
+  }));
+  return `${text || ''}${ATTACHMENT_MARKER}${JSON.stringify(payload)}`;
+};
+
+const decodeMessageContent = (rawText) => {
+  const text = String(rawText || '');
+  const idx = text.indexOf(ATTACHMENT_MARKER);
+  if (idx < 0) return { text, attachments: [] };
+
+  const plain = text.slice(0, idx).trim();
+  const json = text.slice(idx + ATTACHMENT_MARKER.length).trim();
+
+  try {
+    const parsed = JSON.parse(json);
+    const attachments = Array.isArray(parsed) ? parsed : [];
+    return { text: plain, attachments };
+  } catch {
+    return { text, attachments: [] };
+  }
+};
+
 export default function SupportChat({ lawyerId = null, embedded = false, bootstrapMessage = '' }) {
   const {
     user,
@@ -61,10 +108,12 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
+  const [pendingFiles, setPendingFiles] = useState([]);
 
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [processingFiles, setProcessingFiles] = useState(false);
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackComment, setFeedbackComment] = useState('');
@@ -73,6 +122,7 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
   const [error, setError] = useState(null);
   const socketRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const isLawyer = user?.role === 'lawyer';
 
@@ -220,7 +270,7 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
 
   const chatBlockedByApproval = useMemo(() => {
     if (!activeConversation || isAdmin) return false;
-    return Boolean(activeConversation.requiresApproval) && !Boolean(activeConversation.chatApproved);
+    return activeConversation.requiresApproval && !activeConversation.chatApproved;
   }, [activeConversation, isAdmin]);
 
   const canSendInActiveConversation = Boolean(
@@ -298,7 +348,7 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
       return;
     }
     const text = inputValue.trim();
-    if (!text) return;
+    if (!text && !pendingFiles.length) return;
 
     setSending(true);
     setStickToBottom(true);
@@ -307,12 +357,14 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
     try {
       const socket = socketRef.current;
       const peer = normalizeParty(activeConversation?.peerId || activePair?.b || 'admin');
+      const messagePayload = encodeMessageWithAttachments(text, pendingFiles);
+      const hasAttachments = pendingFiles.length > 0;
 
-      if (socket?.connected && currentIdentity) {
+      if (socket?.connected && currentIdentity && !hasAttachments) {
         socket.emit('send_message', {
           userId: currentIdentity,
           lawyerId: peer,
-          message: text,
+          message: messagePayload,
           sender: currentIdentity,
         });
 
@@ -324,15 +376,16 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
             senderId: currentIdentity,
             senderRole: isAdmin ? 'admin' : 'user',
             senderName: user?.name || user?.email || currentIdentity,
-            text,
+            text: messagePayload,
             createdAt: new Date().toISOString(),
           },
         ]);
       } else {
-        await sendSupportMessage({ conversationId: activeConversationId, text, receiver: peer });
+        await sendSupportMessage({ conversationId: activeConversationId, text: messagePayload, receiver: peer });
       }
 
       setInputValue('');
+      setPendingFiles([]);
       await Promise.all([
         loadMessages(activeConversationId, { silent: true }),
         loadConversations({ silent: true }),
@@ -361,6 +414,41 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       handleSend();
+    }
+  };
+
+  const handlePickFiles = async (event) => {
+    const selected = Array.from(event.target.files || []);
+    if (!selected.length) return;
+    event.target.value = '';
+
+    if (pendingFiles.length + selected.length > MAX_ATTACHMENT_COUNT) {
+      setError(`Bir xabarga maksimal ${MAX_ATTACHMENT_COUNT} ta fayl yuborish mumkin.`);
+      return;
+    }
+
+    const oversize = selected.find((file) => file.size > MAX_ATTACHMENT_SIZE);
+    if (oversize) {
+      setError(`${oversize.name} hajmi 5 MB dan katta. Kichikroq fayl yuboring.`);
+      return;
+    }
+
+    setProcessingFiles(true);
+    setError(null);
+
+    try {
+      const prepared = await Promise.all(selected.map(async (file) => ({
+        id: `file_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        dataUrl: await fileToDataUrl(file),
+      })));
+      setPendingFiles((prev) => [...prev, ...prepared].slice(0, MAX_ATTACHMENT_COUNT));
+    } catch (err) {
+      setError(safeError(err, 'Faylni yuklashda xatolik'));
+    } finally {
+      setProcessingFiles(false);
     }
   };
 
@@ -554,6 +642,7 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
           ) : messages.length ? (
             messages.map((msg) => {
               const mine = normalizeParty(msg.senderId) === currentIdentity;
+              const parsed = decodeMessageContent(msg.text);
 
               return (
                 <div key={msg.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -575,7 +664,33 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
                           : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 rounded-bl-sm'
                       }`}
                     >
-                      <p className="text-[15px] whitespace-pre-wrap">{msg.text}</p>
+                      {parsed.text ? (
+                        <p className="text-[15px] whitespace-pre-wrap">{parsed.text}</p>
+                      ) : (
+                        <p className="text-[15px] opacity-80">Fayl yuborildi</p>
+                      )}
+                      {parsed.attachments.length > 0 && (
+                        <div className="mt-2 space-y-1.5">
+                          {parsed.attachments.map((file, index) => (
+                            <a
+                              key={`${msg.id}_att_${index}`}
+                              href={file.dataUrl || '#'}
+                              download={file.name || `file_${index + 1}`}
+                              className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${
+                                mine
+                                  ? 'border-blue-400/40 bg-blue-500/20 text-blue-50'
+                                  : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/70 text-slate-600 dark:text-slate-300'
+                              }`}
+                            >
+                              <span className="inline-flex items-center gap-1.5 min-w-0">
+                                <FileText size={13} />
+                                <span className="truncate">{file.name || 'Fayl'}</span>
+                              </span>
+                              <span className="shrink-0">{formatFileSize(Number(file.size || 0))}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
                       <p className={`text-[11px] mt-2 ${mine ? 'text-blue-100 text-right' : 'text-slate-400'}`}>
                         {formatTime(msg.createdAt)}
                       </p>
@@ -660,7 +775,44 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
         )}
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            onChange={handlePickFiles}
+            className="hidden"
+            accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp"
+          />
+          {pendingFiles.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {pendingFiles.map((file) => (
+                <span
+                  key={file.id}
+                  className="inline-flex items-center gap-1.5 text-xs rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-2.5 py-1"
+                >
+                  <FileText size={12} />
+                  {file.name}
+                  <button
+                    type="button"
+                    onClick={() => setPendingFiles((prev) => prev.filter((item) => item.id !== file.id))}
+                    className="text-slate-400 hover:text-red-500"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex items-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!canSendInActiveConversation || sending || processingFiles}
+              className="h-[46px] px-3"
+            >
+              {processingFiles ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+            </Button>
             <textarea
               value={inputValue}
               onChange={(event) => setInputValue(event.target.value)}
@@ -673,12 +825,15 @@ export default function SupportChat({ lawyerId = null, embedded = false, bootstr
             <Button
               type="button"
               onClick={handleSend}
-              disabled={!inputValue.trim() || sending || !canSendInActiveConversation}
+              disabled={(!inputValue.trim() && pendingFiles.length === 0) || sending || !canSendInActiveConversation || processingFiles}
               className="btn-primary h-[46px] px-4"
             >
               {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </Button>
           </div>
+          <p className="text-[11px] text-slate-400 mt-2">
+            Fayl turlari: PDF, DOC, DOCX, TXT, JPG, PNG (max 5 MB, 3 ta fayl).
+          </p>
           {chatBlockedByApproval && (
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 inline-flex items-center gap-1.5">
               <AlertTriangle size={13} />

@@ -1,34 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, Bookmark, Calendar, Clock, Loader2, Search, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Bookmark, Calendar, Clock, Search, Sparkles } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { buildApiUrl } from '../config/appConfig';
+import { pickNewsFallbackImage } from '../utils/newsImages';
+import { fetchUzaNews, fetchUzaNewsDetail } from '../utils/uzaNews';
 
-const NEWS_ENDPOINTS = ['/news', '/api/news'];
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=2000';
 const SAVED_NEWS_KEY = 'legallink_saved_news_v1';
-const TOKEN_KEY = 'advokat_auth_token';
-
-const getAuthHeaders = () => {
-  try {
-    const token = localStorage.getItem(TOKEN_KEY);
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch {
-    return {};
-  }
-};
 
 const FALLBACK_NEWS = [
   {
     id: 'fallback-1',
     title: "Yuridik yangiliklar bo'limi ishga tushdi",
-    excerpt: "Frontend API bilan bog'landi. Endi yangiliklar backenddan avtomatik olinadi.",
+    excerpt: "Hozircha UZA API bilan ulanishda muammo bor. Keyinroq qayta urinib ko'ring.",
     content:
-      "Yuridik platformada yangiliklar bo'limi yangilandi. Endi foydalanuvchilar uchun yangiliklar tez va qulay ko'rinishda taqdim etiladi.",
-    category: 'platform',
-    image: FALLBACK_IMAGE,
+      "Yangiliklar bo'limi vaqtincha fallback rejimida ishlamoqda. Ulanish tiklangach, real yangiliklar avtomatik ko'rsatiladi.",
+    category: 'general',
+    image: pickNewsFallbackImage('fallback-1'),
     author: 'LegalLink',
     date: new Date().toISOString(),
     readTime: 2,
+    externalUrl: '',
+    source: 'fallback',
   },
 ];
 
@@ -45,70 +36,18 @@ const makeExcerpt = (text) => {
   return `${source.slice(0, 180).trim()}...`;
 };
 
-const normalizeNews = (raw = {}, index = 0) => {
-  const id = raw.id || raw._id || raw.slug || `news_${index}_${Date.now()}`;
-  const content = raw.content || raw.body || raw.text || raw.description || '';
-  const excerpt = raw.excerpt || raw.summary || makeExcerpt(content);
-  const createdAt = raw.created_at || raw.createdAt || raw.published_at || raw.publishedAt || raw.date;
-
-  return {
-    id: String(id),
-    title: raw.title || "Nomsiz yangilik",
-    excerpt: makeExcerpt(excerpt || content),
-    content: String(content || excerpt || ''),
-    category: String(raw.category || raw.type || 'general').toLowerCase(),
-    image: raw.image || raw.imageUrl || raw.thumbnail || FALLBACK_IMAGE,
-    author: raw.author || raw.writer || raw.createdBy || 'LegalLink',
-    date: createdAt || new Date().toISOString(),
-    readTime: Number(raw.readTime || raw.read_time || raw.minutes || 3),
-  };
-};
-
-const parseNewsPayload = (payload) => {
-  const list = Array.isArray(payload) ? payload : payload?.news || payload?.data || payload?.items || [];
-  if (!Array.isArray(list)) return [];
-  return list.map(normalizeNews).filter((item) => item.title);
-};
-
-async function fetchNewsAny() {
-  let lastError = null;
-
-  for (const endpoint of NEWS_ENDPOINTS) {
-    try {
-      const response = await fetch(buildApiUrl(endpoint), {
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        const err = new Error(data?.message || data?.error || `Server xatosi: ${response.status}`);
-        err.status = response.status;
-        throw err;
-      }
-
-      return parseNewsPayload(data);
-    } catch (err) {
-      lastError = err;
-      if (err?.status === 401 || err?.status === 403 || err?.status === 404 || err?.status === 405) continue;
-      throw err;
-    }
-  }
-
-  throw lastError || new Error('News endpoint topilmadi');
-}
-
 const categoryLabel = (value) => {
   const key = String(value || 'general').toLowerCase();
   const map = {
     all: 'Barchasi',
     general: 'Umumiy',
-    platform: 'Platforma',
     legislation: 'Qonunchilik',
     court: 'Sud',
-    tips: 'Maslahat',
-    interview: 'Intervyu',
+    society: 'Jamiyat',
+    politics: 'Siyosat',
+    economy: 'Iqtisod',
+    world: 'Jahon',
+    sport: 'Sport',
   };
   return map[key] || key.charAt(0).toUpperCase() + key.slice(1);
 };
@@ -127,6 +66,44 @@ const writeSavedNews = (ids) => {
   localStorage.setItem(SAVED_NEWS_KEY, JSON.stringify(ids));
 };
 
+function NewsDetailSkeleton() {
+  return (
+    <div className="min-h-screen pt-28 pb-20 bg-white">
+      <div className="max-w-4xl mx-auto px-4 animate-pulse">
+        <div className="h-5 w-56 bg-slate-100 rounded-md mb-8" />
+        <div className="w-full h-[340px] rounded-3xl mb-8 bg-slate-100" />
+        <div className="h-4 w-2/3 bg-slate-100 rounded-md mb-4" />
+        <div className="h-10 w-5/6 bg-slate-100 rounded-lg mb-4" />
+        <div className="h-4 w-1/3 bg-slate-100 rounded-md mb-8" />
+        <div className="space-y-3">
+          <div className="h-4 w-full bg-slate-100 rounded-md" />
+          <div className="h-4 w-11/12 bg-slate-100 rounded-md" />
+          <div className="h-4 w-10/12 bg-slate-100 rounded-md" />
+          <div className="h-4 w-9/12 bg-slate-100 rounded-md" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewsCardsSkeleton() {
+  return (
+    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 animate-pulse">
+      {[1, 2, 3, 4, 5, 6].map((item) => (
+        <div key={`news_skeleton_${item}`} className="rounded-2xl border border-slate-100 p-4 bg-white">
+          <div className="aspect-[3/2] rounded-xl bg-slate-100 mb-4" />
+          <div className="h-4 w-1/2 bg-slate-100 rounded-md mb-3" />
+          <div className="h-6 w-11/12 bg-slate-100 rounded-md mb-2" />
+          <div className="h-6 w-4/5 bg-slate-100 rounded-md mb-4" />
+          <div className="h-4 w-full bg-slate-100 rounded-md mb-2" />
+          <div className="h-4 w-10/12 bg-slate-100 rounded-md mb-4" />
+          <div className="h-4 w-2/5 bg-slate-100 rounded-md" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function NewsPage() {
   const { id } = useParams();
   const [news, setNews] = useState([]);
@@ -136,6 +113,9 @@ export default function NewsPage() {
   const [error, setError] = useState('');
   const [savedIds, setSavedIds] = useState(() => readSavedNews());
   const [savedOnly, setSavedOnly] = useState(false);
+  const [detailById, setDetailById] = useState({});
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -145,9 +125,15 @@ export default function NewsPage() {
       setError('');
 
       try {
-        const list = await fetchNewsAny();
+        const list = await fetchUzaNews({ limit: 30 });
         if (cancelled) return;
-        setNews(list.length ? list : FALLBACK_NEWS);
+
+        if (list.length) {
+          setNews(list);
+        } else {
+          setNews(FALLBACK_NEWS);
+          setError('Yangiliklar topilmadi.');
+        }
       } catch (err) {
         if (cancelled) return;
         setError(err?.message || "Yangiliklarni olishda xatolik yuz berdi");
@@ -200,6 +186,49 @@ export default function NewsPage() {
     return news.find((item) => String(item.id) === String(id)) || null;
   }, [id, news]);
 
+  useEffect(() => {
+    if (!selectedArticle) return undefined;
+    const articleId = String(selectedArticle.id);
+    if (detailById[articleId]) return undefined;
+
+    const uzaKey = selectedArticle.uzaId || selectedArticle.uzaSlug;
+    if (!uzaKey) return undefined;
+
+    let active = true;
+    const controller = new AbortController();
+
+    setDetailLoading(true);
+    setDetailError('');
+
+    fetchUzaNewsDetail({ id: uzaKey, signal: controller.signal })
+      .then((detail) => {
+        if (!active) return;
+        setDetailById((prev) => ({ ...prev, [articleId]: detail }));
+      })
+      .catch((err) => {
+        if (!active || err?.name === 'AbortError') return;
+        setDetailError(err?.message || "To'liq matnni olishda xatolik yuz berdi");
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [detailById, selectedArticle]);
+
+  const selectedResolved = useMemo(() => {
+    if (!selectedArticle) return null;
+    return detailById[String(selectedArticle.id)] || selectedArticle;
+  }, [detailById, selectedArticle]);
+
+  const selectedArticleContent = useMemo(
+    () => (selectedResolved ? selectedResolved.content || selectedResolved.excerpt || '' : ''),
+    [selectedResolved]
+  );
+
   const toggleSaved = (articleId) => {
     const idValue = String(articleId);
     setSavedIds((prev) => {
@@ -210,11 +239,7 @@ export default function NewsPage() {
   };
 
   if (id && loading) {
-    return (
-      <div className="min-h-screen pt-32 pb-16 bg-white flex items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-blue-600" />
-      </div>
-    );
+    return <NewsDetailSkeleton />;
   }
 
   if (id && !selectedArticle) {
@@ -233,7 +258,7 @@ export default function NewsPage() {
     );
   }
 
-  if (selectedArticle) {
+  if (selectedResolved) {
     return (
       <div className="min-h-screen pt-28 pb-20 bg-white">
         <div className="max-w-4xl mx-auto px-4">
@@ -243,41 +268,70 @@ export default function NewsPage() {
 
           <article>
             <img
-              src={selectedArticle.image}
-              alt={selectedArticle.title}
+              src={selectedResolved.image}
+              alt={selectedResolved.title}
+              onError={(event) => {
+                const fallback = pickNewsFallbackImage(selectedResolved.id || selectedResolved.title);
+                if (event.currentTarget.src !== fallback) {
+                  event.currentTarget.src = fallback;
+                }
+              }}
               className="w-full h-[340px] object-cover rounded-3xl mb-8"
             />
             <div className="flex flex-wrap gap-4 text-sm text-slate-500 mb-4">
               <span className="inline-flex items-center gap-1.5">
-                <Calendar size={16} /> {formatDate(selectedArticle.date)}
+                <Calendar size={16} /> {formatDate(selectedResolved.date)}
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <Clock size={16} /> {selectedArticle.readTime} daqiqa
+                <Clock size={16} /> {selectedResolved.readTime} daqiqa
               </span>
               <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700">
-                {categoryLabel(selectedArticle.category)}
+                {categoryLabel(selectedResolved.category)}
               </span>
               <button
                 type="button"
-                onClick={() => toggleSaved(selectedArticle.id)}
+                onClick={() => toggleSaved(selectedResolved.id)}
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${
-                  savedIds.includes(String(selectedArticle.id))
+                  savedIds.includes(String(selectedResolved.id))
                     ? 'bg-blue-50 border-blue-200 text-blue-700'
                     : 'bg-white border-slate-200 text-slate-600'
                 }`}
               >
-                <Bookmark size={14} className={savedIds.includes(String(selectedArticle.id)) ? 'fill-current' : ''} />
-                {savedIds.includes(String(selectedArticle.id)) ? 'Saqlangan' : 'Saqlash'}
+                <Bookmark size={14} className={savedIds.includes(String(selectedResolved.id)) ? 'fill-current' : ''} />
+                {savedIds.includes(String(selectedResolved.id)) ? 'Saqlangan' : 'Saqlash'}
               </button>
             </div>
 
             <h1 className="text-3xl md:text-5xl font-serif font-bold text-slate-900 leading-tight mb-4">
-              {selectedArticle.title}
+              {selectedResolved.title}
             </h1>
-            <p className="text-sm text-slate-500 mb-8">Muallif: {selectedArticle.author}</p>
+            <p className="text-sm text-slate-500 mb-8">Manba: {selectedResolved.author}</p>
+
+            {detailLoading && (
+              <p className="mb-4 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700 border border-blue-100">
+                <Clock size={14} /> To‘liq matn yuklanmoqda...
+              </p>
+            )}
+            {detailError && (
+              <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 border border-amber-100">
+                {detailError}
+              </p>
+            )}
+
             <p className="text-lg text-slate-700 leading-8 whitespace-pre-wrap">
-              {selectedArticle.content || selectedArticle.excerpt}
+              {selectedArticleContent}
             </p>
+
+            {selectedResolved.externalUrl && (
+              <a
+                href={selectedResolved.externalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex mt-6 items-center gap-2 text-sm font-semibold text-blue-700 hover:underline"
+              >
+                Asl manbani ochish <ArrowRight size={15} />
+              </a>
+            )}
 
             {digestItems.length > 0 && (
               <div className="mt-10 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
@@ -305,10 +359,10 @@ export default function NewsPage() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
               <h1 className="text-4xl md:text-5xl font-serif font-bold text-slate-900 mb-4">
-                Yuridik Yangiliklar
+                O‘zbekcha Yangiliklar
               </h1>
               <p className="text-lg text-slate-600 max-w-2xl leading-relaxed">
-                Saytdagi yangiliklar backenddan olinadi va foydalanuvchilar uchun shu yerda ko‘rsatiladi.
+                Yangiliklar UZA API orqali olinadi va to‘liq matn bilan ichki sahifada ko‘rsatiladi.
               </p>
             </div>
 
@@ -380,9 +434,7 @@ export default function NewsPage() {
         )}
 
         {loading ? (
-          <div className="py-20 flex items-center justify-center text-slate-500">
-            <Loader2 size={24} className="animate-spin mr-2" /> Yangiliklar yuklanmoqda...
-          </div>
+          <NewsCardsSkeleton />
         ) : filteredNews.length === 0 ? (
           <div className="py-16 text-center border border-slate-200 rounded-2xl text-slate-500">
             Tanlangan filtr bo‘yicha yangilik topilmadi.
@@ -395,6 +447,12 @@ export default function NewsPage() {
                   <img
                     src={item.image}
                     alt={item.title}
+                    onError={(event) => {
+                      const fallback = pickNewsFallbackImage(item.id || item.title);
+                      if (event.currentTarget.src !== fallback) {
+                        event.currentTarget.src = fallback;
+                      }
+                    }}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </Link>

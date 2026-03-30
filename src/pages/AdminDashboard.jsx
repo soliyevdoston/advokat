@@ -11,10 +11,12 @@ import {
   FileText,
   Loader2,
   LogOut,
+  Megaphone,
   MessageCircleMore,
   Newspaper,
   PlusCircle,
   RefreshCw,
+  Rocket,
   Sparkles,
   ShieldAlert,
   ShieldCheck,
@@ -30,12 +32,23 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import SupportChat from '../components/chat/SupportChat';
+import {
+  readLawyerApplications,
+  updateLawyerApplication,
+} from '../utils/lawyerApplications';
+import {
+  readLocalLawyers,
+  removeLocalLawyer,
+  upsertLocalLawyer,
+} from '../utils/localLawyers';
+import { activateSubscriptionForIdentity } from '../utils/subscription';
 
 const NAV_ITEMS = [
   { key: 'overview', label: 'Umumiy', icon: ShieldCheck },
   { key: 'users', label: 'Foydalanuvchilar', icon: Users },
   { key: 'admins', label: 'Adminlar', icon: UserPlus },
   { key: 'lawyers', label: 'Advokatlar', icon: UserSquare2 },
+  { key: 'lawyer_requests', label: 'Advokat arizalari', icon: ShieldAlert },
   { key: 'chats', label: 'Chat markazi', icon: MessageCircleMore },
   { key: 'applications', label: 'Arizalar', icon: FileCheck2 },
   { key: 'subscriptions', label: 'Obunalar', icon: CreditCard },
@@ -110,6 +123,8 @@ const toTimestamp = (value) => {
 
 const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
 const LOCAL_SUBSCRIPTIONS_KEY = 'legallink_user_subscriptions_v1';
+const LOCAL_USERS_KEY = 'advokat_local_users_v1';
+const ADMIN_ANNOUNCEMENTS_KEY = 'legallink_admin_announcements_v1';
 
 const readJSON = (key, fallback) => {
   try {
@@ -137,11 +152,40 @@ const readAuditLogs = () => {
 };
 
 const readSupportApprovals = () => readJSON(SUPPORT_APPROVALS_KEY, {});
+const readAnnouncements = () => readJSON(ADMIN_ANNOUNCEMENTS_KEY, []);
+const writeAnnouncements = (items) => writeJSON(ADMIN_ANNOUNCEMENTS_KEY, items);
 
 const writeAuditLog = (entry) => {
   const next = [entry, ...readAuditLogs()].slice(0, 120);
   localStorage.setItem(ADMIN_AUDIT_KEY, JSON.stringify(next));
   return next;
+};
+
+const ensureLocalLawyerLogin = ({ email, password, name, lawyerId }) => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
+  const pwd = String(password || '').trim() || 'lawyer12345';
+  const users = readJSON(LOCAL_USERS_KEY, []);
+  const idx = users.findIndex((item) => String(item.email || '').toLowerCase() === normalizedEmail);
+
+  const payload = {
+    id: idx >= 0 ? users[idx].id : `local_lawyer_${Date.now()}`,
+    email: normalizedEmail,
+    password: pwd,
+    role: 'lawyer',
+    name: name || normalizedEmail.split('@')[0],
+    lawyerId: lawyerId || null,
+    created_at: idx >= 0 ? users[idx].created_at : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (idx >= 0) {
+    users[idx] = { ...users[idx], ...payload };
+  } else {
+    users.push(payload);
+  }
+  writeJSON(LOCAL_USERS_KEY, users);
+  return payload;
 };
 
 export default function AdminDashboard() {
@@ -194,6 +238,7 @@ export default function AdminDashboard() {
   const [serverOnline, setServerOnline] = useState(null);
 
   const [applications, setApplications] = useState([]);
+  const [lawyerRequests, setLawyerRequests] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [platformSettings, setPlatformSettings] = useState(null);
   const [opsLoading, setOpsLoading] = useState(false);
@@ -206,6 +251,11 @@ export default function AdminDashboard() {
   const [chatError, setChatError] = useState('');
   const [chatSuccess, setChatSuccess] = useState('');
   const [auditLogs, setAuditLogs] = useState(() => readAuditLogs());
+  const [announcementText, setAnnouncementText] = useState('');
+  const [announcementTarget, setAnnouncementTarget] = useState('all');
+  const [announcements, setAnnouncements] = useState(() => readAnnouncements());
+  const [manualSubEmail, setManualSubEmail] = useState('');
+  const [manualSubDays, setManualSubDays] = useState(30);
 
   const buildUrl = useCallback((path) => `${apiBase}${path}`, [apiBase]);
 
@@ -290,9 +340,23 @@ export default function AdminDashboard() {
   );
 
   const loadLawyers = useCallback(async () => {
-    const data = await requestAny(['/lawyers', '/api/lawyers'], { method: 'GET', auth: false });
-    const raw = Array.isArray(data) ? data : (data.lawyers || data.data || data.items || []);
-    setLawyers(toArray(raw).map(normalizeLawyer));
+    const localRows = readLocalLawyers().map(normalizeLawyer);
+    try {
+      const data = await requestAny(['/lawyers', '/api/lawyers'], { method: 'GET', auth: false });
+      const raw = Array.isArray(data) ? data : (data.lawyers || data.data || data.items || []);
+      const remoteRows = toArray(raw).map(normalizeLawyer);
+      const merged = [...remoteRows];
+      localRows.forEach((item) => {
+        const exists = merged.some(
+          (row) => String(row.id) === String(item.id)
+            || (row.email && item.email && String(row.email).toLowerCase() === String(item.email).toLowerCase())
+        );
+        if (!exists) merged.push(item);
+      });
+      setLawyers(merged);
+    } catch {
+      setLawyers(localRows);
+    }
   }, [requestAny]);
 
   const loadServerStatus = useCallback(async () => {
@@ -404,6 +468,11 @@ export default function AdminDashboard() {
     }
   }, [requestAny]);
 
+  const loadLawyerRequests = useCallback(() => {
+    const rows = readLawyerApplications();
+    setLawyerRequests(rows);
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -414,13 +483,14 @@ export default function AdminDashboard() {
       setConversations(Array.isArray(chats) ? chats : []);
 
       await Promise.all([loadLawyers(), loadContentStats(), loadOpsPanels(), loadServerStatus()]);
+      loadLawyerRequests();
       setLastSyncedAt(new Date());
     } catch (err) {
       setError(safeError(err, "Ma'lumotlarni yuklashda xatolik yuz berdi"));
     } finally {
       setLoading(false);
     }
-  }, [getAllUsers, listSupportConversations, loadLawyers, loadContentStats, loadOpsPanels, loadServerStatus, safeError]);
+  }, [getAllUsers, listSupportConversations, loadLawyers, loadContentStats, loadOpsPanels, loadServerStatus, loadLawyerRequests, safeError]);
 
   useEffect(() => {
     fetchData();
@@ -504,13 +574,23 @@ export default function AdminDashboard() {
 
       const created = normalizeLawyer(data.lawyer || data.data || data);
       setLawyers((prev) => [created, ...prev.filter((item) => String(item.id) !== String(created.id))]);
+      upsertLocalLawyer(created);
       setLawyerForm(EMPTY_LAWYER_FORM);
-      await createLawyerAccount({
-        email: created.email || lawyerForm.email,
-        password: String(lawyerForm.loginPassword || '').trim(),
-        name: created.name || lawyerForm.name,
-        lawyerId: created.id || null,
-      });
+      try {
+        await createLawyerAccount({
+          email: created.email || lawyerForm.email,
+          password: String(lawyerForm.loginPassword || '').trim(),
+          name: created.name || lawyerForm.name,
+          lawyerId: created.id || null,
+        });
+      } catch {
+        ensureLocalLawyerLogin({
+          email: created.email || lawyerForm.email,
+          password: String(lawyerForm.loginPassword || '').trim(),
+          name: created.name || lawyerForm.name,
+          lawyerId: created.id || null,
+        });
+      }
       setLawyerSuccess('Advokat va uning kabinet login/paroli muvaffaqiyatli yaratildi');
       await pushAuditLog({
         action: 'lawyer_created',
@@ -519,7 +599,22 @@ export default function AdminDashboard() {
       });
       await fetchData();
     } catch (err) {
-      setLawyerError(safeError(err, 'Advokat qo\'shishda xatolik yuz berdi'));
+      const fallbackPayload = buildLawyerPayload();
+      const fallbackLawyer = normalizeLawyer({
+        ...fallbackPayload,
+        id: `lawyer_local_${Date.now()}`,
+      });
+      upsertLocalLawyer(fallbackLawyer);
+      ensureLocalLawyerLogin({
+        email: fallbackLawyer.email || lawyerForm.email,
+        password: String(lawyerForm.loginPassword || '').trim(),
+        name: fallbackLawyer.name || lawyerForm.name,
+        lawyerId: fallbackLawyer.id,
+      });
+      setLawyers((prev) => [fallbackLawyer, ...prev.filter((item) => String(item.id) !== String(fallbackLawyer.id))]);
+      setLawyerForm(EMPTY_LAWYER_FORM);
+      setLawyerSuccess('Backend javob bermadi. Advokat local rejimda saqlandi va kabinet ochildi.');
+      setLawyerError(safeError(err, 'API orqali saqlab bo‘lmadi, local fallback ishlatildi'));
     } finally {
       setLawyerSaving(false);
     }
@@ -541,6 +636,7 @@ export default function AdminDashboard() {
         target: String(id),
         detail: 'Advokat o\'chirildi',
       });
+      removeLocalLawyer(id);
       setLawyers((prev) => prev.filter((item) => String(item.id) !== String(id)));
       setLawyerSuccess('Advokat o\'chirildi');
     } catch (err) {
@@ -568,6 +664,7 @@ export default function AdminDashboard() {
   const opsStats = useMemo(() => {
     const pendingApplications = applications.filter((item) => !String(item?.status || '').toLowerCase().includes('resolved')).length;
     const activeSubscriptions = subscriptions.filter((item) => String(item?.status || '').toLowerCase().includes('active')).length;
+    const pendingLawyerRequests = lawyerRequests.filter((item) => String(item?.status || '').toLowerCase() === 'pending').length;
     const todayNewUsers = usersList.filter((usr) => {
       const createdAt = toTimestamp(usr?.created_at || usr?.createdAt);
       if (!createdAt) return false;
@@ -576,13 +673,68 @@ export default function AdminDashboard() {
       return createdAt >= dayStart;
     }).length;
 
-    return { pendingApplications, activeSubscriptions, todayNewUsers };
-  }, [applications, subscriptions, usersList]);
+    return { pendingApplications, activeSubscriptions, todayNewUsers, pendingLawyerRequests };
+  }, [applications, subscriptions, lawyerRequests, usersList]);
 
   const sectionLabel = useMemo(
     () => NAV_ITEMS.find((item) => item.key === section)?.label || 'Dashboard',
     [section]
   );
+
+  const opsAlerts = useMemo(() => {
+    const list = [];
+    const pendingChat = conversations.filter((conv) => Boolean(conv?.requiresApproval || conv?.lawyerId) && !conv.chatApproved).length;
+    const expiringSoon = subscriptions.filter((item) => {
+      const raw = item?.expiresAt || item?.expireDate || item?.endDate;
+      if (!raw) return false;
+      const ts = new Date(raw).getTime();
+      if (!Number.isFinite(ts)) return false;
+      const left = ts - Date.now();
+      return left > 0 && left <= 3 * 24 * 60 * 60 * 1000;
+    }).length;
+
+    if (opsStats.pendingLawyerRequests > 0) {
+      list.push({
+        id: 'lawyer_requests',
+        title: `${opsStats.pendingLawyerRequests} ta advokat arizasi tasdiq kutmoqda`,
+        action: 'Arizalarni ko‘rish',
+        onClick: () => setSection('lawyer_requests'),
+        tone: 'amber',
+      });
+    }
+
+    if (pendingChat > 0) {
+      list.push({
+        id: 'pending_chats',
+        title: `${pendingChat} ta chat admin ruxsatini kutmoqda`,
+        action: 'Chat bo‘limi',
+        onClick: () => setSection('chats'),
+        tone: 'blue',
+      });
+    }
+
+    if (expiringSoon > 0) {
+      list.push({
+        id: 'subscriptions_expiry',
+        title: `${expiringSoon} ta obuna 3 kun ichida tugaydi`,
+        action: 'Obunalar',
+        onClick: () => setSection('subscriptions'),
+        tone: 'rose',
+      });
+    }
+
+    if (!list.length) {
+      list.push({
+        id: 'stable',
+        title: 'Barcha muhim oqimlar me’yorda ishlayapti',
+        action: 'Dashboard',
+        onClick: () => setSection('overview'),
+        tone: 'emerald',
+      });
+    }
+
+    return list;
+  }, [conversations, opsStats.pendingLawyerRequests, subscriptions]);
 
   const healthScore = useMemo(() => {
     const checks = [
@@ -626,10 +778,19 @@ export default function AdminDashboard() {
       });
     });
 
+    lawyerRequests.slice(-8).forEach((req, idx) => {
+      items.push({
+        id: `lawreq_${req.id || idx}`,
+        type: 'Advokat arizasi',
+        text: `${req.fullName || req.email || 'Nomzod'} -> ${req.status || 'pending'}`,
+        at: req.createdAt,
+      });
+    });
+
     return items
       .sort((a, b) => toTimestamp(b.at) - toTimestamp(a.at))
       .slice(0, 7);
-  }, [usersList, conversations, applications]);
+  }, [usersList, conversations, applications, lawyerRequests]);
 
   const filteredUsers = useMemo(() => {
     const query = userSearch.trim().toLowerCase();
@@ -742,17 +903,18 @@ export default function AdminDashboard() {
   const toggleApplicationChatApproval = async (application, approved) => {
     const appId = String(application?.id || application?._id || '');
     if (!appId) return;
+    const isApproved = approved === true;
 
     const next = applications.map((item) => (
-      String(item.id || item._id) === appId ? { ...item, chatApproved: Boolean(approved) } : item
+      String(item.id || item._id) === appId ? { ...item, chatApproved: isApproved } : item
     ));
     persistApplications(next);
 
-    setOpsNotice(Boolean(approved) ? 'Chatga ruxsat berildi' : 'Chat ruxsati bekor qilindi');
+    setOpsNotice(isApproved ? 'Chatga ruxsat berildi' : 'Chat ruxsati bekor qilindi');
     await pushAuditLog({
       action: 'application_chat_approval',
       target: appId,
-      detail: Boolean(approved) ? 'Chatga ruxsat berildi' : 'Chat ruxsati bekor qilindi',
+      detail: isApproved ? 'Chatga ruxsat berildi' : 'Chat ruxsati bekor qilindi',
     });
   };
 
@@ -766,6 +928,184 @@ export default function AdminDashboard() {
       action: 'subscription_status_changed',
       target: String(id),
       detail: `Obuna holati -> ${status}`,
+    });
+  };
+
+  const handleManualSubscription = async (event) => {
+    event.preventDefault();
+    const email = String(manualSubEmail || '').trim().toLowerCase();
+    const days = Math.max(1, Number(manualSubDays) || 30);
+    if (!email) {
+      setOpsError('Foydalanuvchi emailini kiriting');
+      return;
+    }
+
+    const created = activateSubscriptionForIdentity({
+      email,
+      plan: 'PRO',
+      gateway: 'manual_admin',
+      amount: 0,
+      periodDays: days,
+    });
+
+    const next = [created, ...subscriptions];
+    persistSubscriptions(next);
+    setManualSubEmail('');
+    setManualSubDays(30);
+    setOpsNotice(`${email} uchun PRO obuna ${days} kunga ochildi`);
+    setOpsError('');
+    await pushAuditLog({
+      action: 'subscription_manual_activated',
+      target: email,
+      detail: `Admin qo‘lda ${days} kunlik obuna ochdi`,
+    });
+  };
+
+  const handleSendAnnouncement = async (event) => {
+    event.preventDefault();
+    const text = String(announcementText || '').trim();
+    if (!text) {
+      setOpsError('E\'lon matnini kiriting');
+      return;
+    }
+
+    const entry = {
+      id: `ann_${Date.now()}`,
+      text,
+      target: announcementTarget,
+      createdAt: new Date().toISOString(),
+      actor: user?.email || 'admin',
+    };
+
+    const next = [entry, ...announcements].slice(0, 40);
+    setAnnouncements(next);
+    writeAnnouncements(next);
+    setAnnouncementText('');
+    setOpsNotice('Platforma e\'loni yuborildi');
+    setOpsError('');
+    await pushAuditLog({
+      action: 'platform_announcement_sent',
+      target: announcementTarget,
+      detail: text.slice(0, 120),
+    });
+  };
+
+  const handleBulkApproveLawyerChats = async () => {
+    const pending = lawyerChatConversations.filter((conv) => !conv.chatApproved);
+    if (!pending.length) {
+      setOpsNotice('Ruxsat kutayotgan chat topilmadi');
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      pending.map((conv) => setSupportConversationApproval(conv.id, true, {
+        lawyerId: conv.lawyerId || conv.peerId || null,
+      }))
+    );
+
+    const successCount = results.filter((item) => item.status === 'fulfilled').length;
+    setOpsNotice(`${successCount}/${pending.length} ta chatga ruxsat berildi`);
+    await pushAuditLog({
+      action: 'bulk_chat_approval',
+      target: 'lawyer_chats',
+      detail: `Ruxsat berilgan chatlar: ${successCount}/${pending.length}`,
+    });
+    await fetchData();
+  };
+
+  const approveLawyerRequest = async (application) => {
+    const appId = String(application?.id || '').trim();
+    if (!appId) return;
+
+    const payload = {
+      name: application.fullName || application.name || 'Yangi advokat',
+      email: application.email || '',
+      phone: application.phone || '',
+      specialization: application.specialization || 'civil',
+      experience: toNum(application.experience, 1),
+      location: {
+        city: application.city || 'toshkent',
+        district: application.district || '',
+      },
+      license: application.license || '',
+      workHours: '09:00 - 18:00',
+      image: DEFAULT_AVATAR,
+      languages: Array.isArray(application.languages) ? application.languages : ["O'zbek"],
+      bio: application.bio || `${application.fullName || 'Advokat'} bo'yicha ma'lumot yo'q`,
+    };
+
+    if (!payload.email) {
+      setOpsError('Nomzod emaili topilmadi. Ariza ma\'lumotini tekshiring.');
+      return;
+    }
+
+    try {
+      let created = null;
+      try {
+        const data = await requestAny(['/lawyers', '/api/lawyers'], {
+          method: 'POST',
+          body: payload,
+          auth: true,
+        });
+        created = normalizeLawyer(data.lawyer || data.data || data || payload);
+      } catch {
+        created = normalizeLawyer({
+          ...payload,
+          id: `lawyer_local_${Date.now()}`,
+        });
+      }
+
+      upsertLocalLawyer(created);
+      try {
+        await createLawyerAccount({
+          email: payload.email,
+          password: application.loginPassword || 'lawyer12345',
+          name: payload.name,
+          lawyerId: created.id || null,
+        });
+      } catch {
+        ensureLocalLawyerLogin({
+          email: payload.email,
+          password: application.loginPassword || 'lawyer12345',
+          name: payload.name,
+          lawyerId: created.id || null,
+        });
+      }
+
+      const updated = updateLawyerApplication(appId, {
+        status: 'approved',
+        approvedAt: new Date().toISOString(),
+        approvedBy: user?.email || 'admin',
+      });
+      setLawyerRequests((prev) => prev.map((item) => (String(item.id) === appId ? updated : item)));
+      setOpsNotice('Advokat arizasi tasdiqlandi va kabinet yaratildi');
+      await pushAuditLog({
+        action: 'lawyer_application_approved',
+        target: payload.email || appId,
+        detail: 'Ariza tasdiqlandi, advokat ro‘yxatga qo‘shildi',
+      });
+      await fetchData();
+    } catch (err) {
+      setOpsError(safeError(err, 'Advokat arizasini tasdiqlashda xatolik'));
+    }
+  };
+
+  const rejectLawyerRequest = async (application, reason = 'Talablar mos emas') => {
+    const appId = String(application?.id || '').trim();
+    if (!appId) return;
+
+    const updated = updateLawyerApplication(appId, {
+      status: 'rejected',
+      rejectReason: reason,
+      approvedAt: new Date().toISOString(),
+      approvedBy: user?.email || 'admin',
+    });
+    setLawyerRequests((prev) => prev.map((item) => (String(item.id) === appId ? updated : item)));
+    setOpsNotice('Advokat arizasi rad etildi');
+    await pushAuditLog({
+      action: 'lawyer_application_rejected',
+      target: application?.email || appId,
+      detail: reason,
     });
   };
 
@@ -841,6 +1181,11 @@ export default function AdminDashboard() {
     if (query.includes('advokat') || query.includes('lawyer')) {
       setSection('lawyers');
       setLawyerSearch(globalQuery.trim());
+      return;
+    }
+
+    if (query.includes('ariza') || query.includes('request')) {
+      setSection('lawyer_requests');
       return;
     }
 
@@ -962,6 +1307,7 @@ export default function AdminDashboard() {
                   <StatCard label="Yangi user (bugun)" value={opsStats.todayNewUsers} icon={UserPlus} />
                   <StatCard label="Jarayondagi ariza" value={opsStats.pendingApplications} icon={FileCheck2} />
                   <StatCard label="Faol obuna" value={opsStats.activeSubscriptions} icon={CreditCard} />
+                  <StatCard label="Yangi advokat arizasi" value={opsStats.pendingLawyerRequests} icon={ShieldAlert} />
                 </div>
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 flex items-center justify-between gap-4">
@@ -986,9 +1332,45 @@ export default function AdminDashboard() {
 
                 <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
                   <QuickLinkCard title="Advokatlar" desc="Yangi advokat qo'shish va ro'yxatni boshqarish" to="#" onClick={() => setSection('lawyers')} />
+                  <QuickLinkCard title="Advokat arizalari" desc="Nomzodlarni tasdiqlash yoki rad etish" to="#" onClick={() => setSection('lawyer_requests')} />
                   <QuickLinkCard title="Foydalanuvchilar" desc="Ro'yxatdan o'tgan userlarni ko'rish" to="#" onClick={() => setSection('users')} />
                   <QuickLinkCard title="Chat markazi" desc="Mijoz va advokatlar yozishmalarini nazorat qilish" to="#" onClick={() => setSection('chats')} />
                   <QuickLinkCard title="Sayt kontenti" desc="Modda, hujjat va yangilik statistikasi" to="#" onClick={() => setSection('content')} />
+                </div>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <h3 className="font-semibold inline-flex items-center gap-2">
+                      <BellRing size={16} className="text-amber-300" />
+                      Alert Center
+                    </h3>
+                    <span className="text-xs text-slate-400">Ops priority</span>
+                  </div>
+                  <div className="space-y-2">
+                    {opsAlerts.map((alert) => (
+                      <div
+                        key={alert.id}
+                        className={`rounded-xl border px-3 py-2.5 flex items-center justify-between gap-2 ${
+                          alert.tone === 'amber'
+                            ? 'border-amber-800 bg-amber-900/20'
+                            : alert.tone === 'rose'
+                              ? 'border-rose-800 bg-rose-900/20'
+                              : alert.tone === 'emerald'
+                                ? 'border-emerald-800 bg-emerald-900/20'
+                                : 'border-blue-800 bg-blue-900/20'
+                        }`}
+                      >
+                        <p className="text-sm text-slate-100">{alert.title}</p>
+                        <button
+                          type="button"
+                          onClick={alert.onClick}
+                          className="text-xs px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-800"
+                        >
+                          {alert.action}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {opsNotice && <AlertBox type="success" text={opsNotice} />}
@@ -1227,6 +1609,80 @@ export default function AdminDashboard() {
               </Panel>
             )}
 
+            {section === 'lawyer_requests' && (
+              <Panel title="Advokat arizalari" subtitle="Saytdan kelgan advokat arizalarini ko‘rib chiqing va tasdiqlang">
+                {lawyerRequests.length === 0 ? (
+                  <EmptyBox text="Hozircha advokat arizalari yo‘q" dark />
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                    <table className="w-full text-sm">
+                      <thead className="text-slate-400 border-b border-slate-800 bg-slate-900">
+                        <tr>
+                          <th className="text-left px-3 py-2.5">#</th>
+                          <th className="text-left px-3 py-2.5">Nomzod</th>
+                          <th className="text-left px-3 py-2.5">Mutaxassislik</th>
+                          <th className="text-left px-3 py-2.5">Tajriba</th>
+                          <th className="text-left px-3 py-2.5">Holat</th>
+                          <th className="text-left px-3 py-2.5">Amal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lawyerRequests.map((item, idx) => (
+                          <tr key={String(item.id || idx)} className="border-b border-slate-900">
+                            <td className="px-3 py-2.5 text-slate-400">{idx + 1}</td>
+                            <td className="px-3 py-2.5">
+                              <p className="font-semibold text-slate-200">{item.fullName || item.name || '-'}</p>
+                              <p className="text-xs text-slate-400">{item.email || '-'}</p>
+                              <p className="text-xs text-slate-500">{item.phone || '-'}</p>
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-300">{item.specialization || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-300">{item.experience || 1} yil</td>
+                            <td className="px-3 py-2.5">
+                              <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${
+                                item.status === 'approved'
+                                  ? 'bg-emerald-900/40 text-emerald-300'
+                                  : item.status === 'rejected'
+                                    ? 'bg-rose-900/40 text-rose-300'
+                                    : 'bg-amber-900/40 text-amber-300'
+                              }`}>
+                                {item.status || 'pending'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              {item.status === 'pending' ? (
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => { void approveLawyerRequest(item); }}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-800 bg-emerald-900/30 text-emerald-300 px-2.5 py-1.5 text-xs hover:bg-emerald-900/40"
+                                  >
+                                    <CheckCircle2 size={12} />
+                                    Tasdiqlash
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { void rejectLawyerRequest(item); }}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-rose-800 bg-rose-900/30 text-rose-300 px-2.5 py-1.5 text-xs hover:bg-rose-900/40"
+                                  >
+                                    <ShieldAlert size={12} />
+                                    Rad etish
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-400">
+                                  {item.approvedBy ? `Admin: ${item.approvedBy}` : 'Yakunlangan'}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Panel>
+            )}
+
             {section === 'chats' && (
               <Panel title="Admin chat markazi" subtitle="Mijozlar va advokatlar bilan real-time yozishma">
                 <div className="mb-6 grid lg:grid-cols-2 gap-4">
@@ -1269,7 +1725,17 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-900 p-4">
-                  <h3 className="font-semibold mb-3">Advokat chat ruxsatlari</h3>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-semibold">Advokat chat ruxsatlari</h3>
+                    <button
+                      type="button"
+                      onClick={() => { void handleBulkApproveLawyerChats(); }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-800 bg-emerald-900/30 text-emerald-300 px-2.5 py-1.5 text-xs hover:bg-emerald-900/40"
+                    >
+                      <Rocket size={12} />
+                      Pending chatlarni biryo‘la ochish
+                    </button>
+                  </div>
                   {lawyerChatConversations.length === 0 ? (
                     <p className="text-sm text-slate-400">Hozircha advokatga bog‘langan chatlar yo‘q.</p>
                   ) : (
@@ -1439,6 +1905,36 @@ export default function AdminDashboard() {
             {section === 'subscriptions' && (
               <Panel title="Obunalar nazorati" subtitle="Foydalanuvchi obunalari monitoringi">
                 {opsError && <AlertBox type="error" text={opsError} />}
+                <form onSubmit={handleManualSubscription} className="mb-4 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+                  <p className="text-sm font-semibold mb-3 inline-flex items-center gap-2">
+                    <CreditCard size={15} className="text-blue-300" />
+                    Qo‘lda PRO obuna ochish
+                  </p>
+                  <div className="grid md:grid-cols-[1fr_180px_auto] gap-2">
+                    <InputDark
+                      label="Foydalanuvchi email"
+                      type="email"
+                      value={manualSubEmail}
+                      onChange={setManualSubEmail}
+                      placeholder="user@mail.com"
+                      required
+                    />
+                    <InputDark
+                      label="Kun"
+                      type="number"
+                      min={1}
+                      value={String(manualSubDays)}
+                      onChange={(value) => setManualSubDays(Number(value) || 30)}
+                      required
+                    />
+                    <button
+                      type="submit"
+                      className="md:self-end inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-semibold"
+                    >
+                      Ochish
+                    </button>
+                  </div>
+                </form>
                 {opsLoading ? (
                   <LoadingBox text="Obunalar yuklanmoqda..." />
                 ) : subscriptions.length === 0 ? (
@@ -1570,6 +2066,57 @@ export default function AdminDashboard() {
                   <pre className="text-xs text-slate-300 bg-slate-950 border border-slate-800 rounded-xl p-3 overflow-auto max-h-[360px]">
 {JSON.stringify(platformSettings || { message: 'Settings endpoint javobi yo\'q' }, null, 2)}
                   </pre>
+                </div>
+
+                <div className="mt-4 grid xl:grid-cols-2 gap-4">
+                  <form onSubmit={handleSendAnnouncement} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+                    <p className="font-semibold mb-3 inline-flex items-center gap-2">
+                      <Megaphone size={15} className="text-amber-300" />
+                      Platforma e’loni yuborish
+                    </p>
+                    <label className="block space-y-1.5 mb-2">
+                      <span className="text-xs text-slate-400">Target</span>
+                      <select
+                        value={announcementTarget}
+                        onChange={(event) => setAnnouncementTarget(event.target.value)}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
+                      >
+                        <option value="all">Barcha foydalanuvchilar</option>
+                        <option value="users">Faqat mijozlar</option>
+                        <option value="lawyers">Faqat advokatlar</option>
+                      </select>
+                    </label>
+                    <TextAreaDark
+                      label="E’lon matni"
+                      value={announcementText}
+                      onChange={setAnnouncementText}
+                    />
+                    <button
+                      type="submit"
+                      className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 py-2.5 text-sm font-semibold"
+                    >
+                      <Megaphone size={14} />
+                      E’lon yuborish
+                    </button>
+                  </form>
+
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+                    <p className="font-semibold mb-3">So‘nggi e’lonlar</p>
+                    {announcements.length === 0 ? (
+                      <EmptyBox text="Hali e’lon yuborilmagan" dark />
+                    ) : (
+                      <div className="space-y-2 max-h-[320px] overflow-auto pr-1">
+                        {announcements.map((item) => (
+                          <div key={item.id} className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+                            <p className="text-xs text-slate-400 mb-1">
+                              {item.target} · {new Date(item.createdAt).toLocaleString()}
+                            </p>
+                            <p className="text-sm text-slate-200">{item.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </Panel>
             )}

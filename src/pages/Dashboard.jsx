@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  Download,
   FilePlus2,
   FileText,
   Loader2,
@@ -15,6 +16,19 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import { openPaymentGateway } from '../utils/paymentGate';
+import {
+  activateSubscription,
+  createPendingSubscription,
+  hasActiveSubscription,
+  readSubscriptions,
+} from '../utils/subscription';
+import {
+  TEMPLATE_LIBRARY,
+  buildTemplatePreview,
+  exportTemplateAsDocx,
+  exportTemplateAsPdf,
+  findTemplateById,
+} from '../utils/documentTemplates';
 
 const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
 const LOCAL_SUBSCRIPTIONS_KEY = 'legallink_user_subscriptions_v1';
@@ -23,6 +37,7 @@ const TAB_ITEMS = [
   { key: 'overview', label: 'Umumiy' },
   { key: 'applications', label: 'Arizalar' },
   { key: 'payments', label: 'Obuna va tolov' },
+  { key: 'templates', label: 'Hujjat shablonlari' },
   { key: 'chats', label: 'Chatlar' },
 ];
 
@@ -52,6 +67,8 @@ export default function Dashboard() {
   const [applications, setApplications] = useState(() => readJSON(LOCAL_APPLICATIONS_KEY, []));
   const [subscriptions, setSubscriptions] = useState(() => readJSON(LOCAL_SUBSCRIPTIONS_KEY, []));
   const [conversations, setConversations] = useState([]);
+  const [templateId, setTemplateId] = useState(TEMPLATE_LIBRARY[0]?.id || 'neighbor_noise');
+  const [templateValues, setTemplateValues] = useState({});
 
   const [appForm, setAppForm] = useState({
     title: '',
@@ -59,6 +76,18 @@ export default function Dashboard() {
     description: '',
   });
   const [savingApp, setSavingApp] = useState(false);
+
+  const activeTemplate = useMemo(() => findTemplateById(templateId), [templateId]);
+
+  const templatePreview = useMemo(
+    () => buildTemplatePreview(templateId, templateValues),
+    [templateId, templateValues]
+  );
+
+  const isProActive = useMemo(
+    () => hasActiveSubscription(user, subscriptions),
+    [subscriptions, user]
+  );
 
   const apiRequest = useCallback(
     async (paths, { method = 'GET', body } = {}) => {
@@ -154,13 +183,11 @@ export default function Dashboard() {
     const openApplications = applications.filter(
       (item) => !['resolved', 'closed'].includes(String(item?.status || '').toLowerCase())
     ).length;
-    const activeSubscriptions = subscriptions.filter((item) =>
-      String(item?.status || '').toLowerCase().includes('active')
-    ).length;
+    const activeSubscriptions = isProActive ? 1 : 0;
     const openChats = conversations.filter((item) => String(item?.status || '').toLowerCase() !== 'closed').length;
 
     return { openApplications, activeSubscriptions, openChats };
-  }, [applications, subscriptions, conversations]);
+  }, [applications, conversations, isProActive]);
 
   const priorityTasks = useMemo(() => {
     const list = [];
@@ -171,14 +198,14 @@ export default function Dashboard() {
     if (waitingApproval > 0) {
       list.push(`${waitingApproval} ta arizada chat admin tasdig‘ini kutmoqda.`);
     }
-    if (stats.activeSubscriptions === 0) {
+    if (!isProActive) {
       list.push('Pro obuna yoqilmagan. Tezkor xizmatlar uchun obunani faollashtiring.');
     }
     if (!list.length) {
       list.push('Hammasi joyida. Yangi murojaat yaratish orqali ishni davom ettiring.');
     }
     return list.slice(0, 3);
-  }, [applications, stats.activeSubscriptions, stats.openApplications]);
+  }, [applications, isProActive, stats.openApplications]);
 
   const handleLogout = () => {
     logout();
@@ -243,6 +270,12 @@ export default function Dashboard() {
     setError('');
     setNotice('');
     const amount = 50000;
+    createPendingSubscription({
+      user,
+      gateway,
+      amount,
+      plan: 'PRO',
+    });
     const opened = openPaymentGateway({
       gateway,
       amount,
@@ -252,23 +285,22 @@ export default function Dashboard() {
 
     if (!opened) {
       setError(`${gateway.toUpperCase()} tolovi sozlanmagan. .env ga VITE_${gateway.toUpperCase()}_* qiymatlarini kiriting.`);
+      const pendingRows = readSubscriptions();
+      setSubscriptions(pendingRows);
+      saveJSON(LOCAL_SUBSCRIPTIONS_KEY, pendingRows);
       return;
     }
 
-    const next = [
-      {
-        id: `sub_${Date.now()}`,
-        plan: 'PRO',
-        amount,
-        gateway,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      },
-      ...subscriptions,
-    ];
-    setSubscriptions(next);
-    saveJSON(LOCAL_SUBSCRIPTIONS_KEY, next);
-    setNotice(`${gateway.toUpperCase()} orqali tolov sahifasiga yonaltirildi`);
+    activateSubscription({
+      user,
+      gateway,
+      amount,
+      plan: 'PRO',
+    });
+    const nextRows = readSubscriptions();
+    setSubscriptions(nextRows);
+    saveJSON(LOCAL_SUBSCRIPTIONS_KEY, nextRows);
+    setNotice(`${gateway.toUpperCase()} to‘lovi qabul qilindi va PRO obuna avtomatik faollashtirildi`);
   };
 
   if (!user) {
@@ -352,6 +384,7 @@ export default function Dashboard() {
                   <div className="space-y-2">
                     <Button onClick={() => setActiveTab('applications')} className="btn-primary w-full">Ariza yaratish</Button>
                     <Button onClick={() => setActiveTab('payments')} variant="outline" className="w-full">Obuna ulash</Button>
+                    <Button onClick={() => setActiveTab('templates')} variant="outline" className="w-full">Hujjat shablonlari</Button>
                     <Button onClick={() => navigate('/chat/support')} variant="outline" className="w-full">Support chatga kirish</Button>
                   </div>
                 </Card>
@@ -460,6 +493,13 @@ export default function Dashboard() {
                   <p className="text-slate-600 dark:text-slate-300 text-sm mb-4">
                     50 000 UZS / oy. Click yoki Payme orqali tolov qiling.
                   </p>
+                  <p className={`text-xs mb-3 inline-flex px-2 py-1 rounded-lg ${
+                    isProActive
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                  }`}>
+                    {isProActive ? 'PRO obuna faol' : 'PRO obuna faol emas'}
+                  </p>
                   <ul className="space-y-2 text-sm mb-4">
                     <li className="inline-flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-500" /> 24/7 support chat</li>
                     <li className="inline-flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-500" /> Arizalarda ustuvor korib chiqish</li>
@@ -487,7 +527,7 @@ export default function Dashboard() {
                   <ol className="text-sm text-slate-600 dark:text-slate-300 space-y-2 list-decimal list-inside">
                     <li>To'lov turini tanlang (Click yoki Payme).</li>
                     <li>Ilova/sahifaga avtomatik yonaltirilasiz.</li>
-                    <li>To'lovdan keyin status `active` bo'lib yangilanadi.</li>
+                    <li>To'lovdan keyin status `active` bo'lib avtomatik ochiladi.</li>
                   </ol>
                 </Card>
 
@@ -503,6 +543,88 @@ export default function Dashboard() {
                       ))}
                     </div>
                   )}
+                </Card>
+              </div>
+            )}
+
+            {activeTab === 'templates' && (
+              <div className="grid xl:grid-cols-2 gap-5">
+                <Card title="Hujjat shabloni">
+                  <div className="space-y-3">
+                    <label className="block space-y-1">
+                      <span className="text-xs text-slate-500">Shablon turi</span>
+                      <select
+                        value={templateId}
+                        onChange={(event) => {
+                          setTemplateId(event.target.value);
+                          setTemplateValues({});
+                        }}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"
+                      >
+                        {TEMPLATE_LIBRARY.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="space-y-3">
+                      {activeTemplate.fields.map((field) => (
+                        <label key={field.key} className="block space-y-1">
+                          <span className="text-xs text-slate-500">{field.label}</span>
+                          <input
+                            value={templateValues[field.key] || ''}
+                            onChange={(event) => setTemplateValues((prev) => ({ ...prev, [field.key]: event.target.value }))}
+                            placeholder={field.placeholder}
+                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"
+                          />
+                        </label>
+                      ))}
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            void exportTemplateAsDocx(templateId, templateValues);
+                            setNotice('DOCX fayl muvaffaqiyatli yuklab olindi');
+                          } catch (err) {
+                            setError(safeError(err, 'DOCX yuklab olishda xatolik'));
+                          }
+                        }}
+                        className="btn-primary w-full"
+                      >
+                        <Download size={16} className="mr-2" />
+                        DOCX yuklash
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          try {
+                            exportTemplateAsPdf(templateId, templateValues);
+                            setNotice('PDF fayl muvaffaqiyatli yuklab olindi');
+                          } catch (err) {
+                            setError(safeError(err, 'PDF yuklab olishda xatolik'));
+                          }
+                        }}
+                        className="w-full"
+                      >
+                        <Download size={16} className="mr-2" />
+                        PDF yuklash
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card title="Ko‘rinish (preview)">
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 min-h-[560px] overflow-auto">
+                    <pre className="text-sm whitespace-pre-wrap text-slate-700 dark:text-slate-200 font-sans">
+                      {templatePreview}
+                    </pre>
+                  </div>
                 </Card>
               </div>
             )}

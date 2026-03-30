@@ -3,6 +3,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock3,
+  Download,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -11,6 +12,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  TimerReset,
   UserCircle2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +23,8 @@ import SupportChat from '../components/chat/SupportChat';
 const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
 const LAWYER_AVAILABILITY_KEY = 'legallink_lawyer_availability_v1';
 const LAWYER_NOTES_KEY = 'legallink_lawyer_notes_v1';
+const LAWYER_PREFERENCES_KEY = 'legallink_lawyer_preferences_v1';
+const ADMIN_ANNOUNCEMENTS_KEY = 'legallink_admin_announcements_v1';
 
 const readJSON = (key, fallback) => {
   try {
@@ -51,6 +55,12 @@ const APPLICATION_STATUSES = [
   { value: 'closed', label: 'Closed' },
 ];
 
+const WORK_STATUS_OPTIONS = [
+  { value: 'online', label: 'Online' },
+  { value: 'busy', label: 'Bandman' },
+  { value: 'offline', label: 'Offline' },
+];
+
 const getLawyerKey = (user) => String(user?.lawyerId || user?.email || user?.id || '').trim();
 
 const statusBadgeClass = (status) => {
@@ -71,6 +81,27 @@ const isUrgentApplication = (item) => {
   return urgentWord || olderThan3Days;
 };
 
+const toCsvCell = (value) => {
+  const safe = String(value ?? '');
+  if (safe.includes('"') || safe.includes(',') || safe.includes('\n')) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
+};
+
+const downloadCsv = (rows, fileName) => {
+  const content = rows.map((row) => row.map(toCsvCell).join(',')).join('\n');
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 600);
+};
+
 export default function LawyerDashboard() {
   const navigate = useNavigate();
   const { user, logout, listSupportConversations, safeError } = useAuth();
@@ -86,6 +117,10 @@ export default function LawyerDashboard() {
   const [notesMap, setNotesMap] = useState({});
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [workStatus, setWorkStatus] = useState('online');
+  const [onlyUrgent, setOnlyUrgent] = useState(false);
+  const [onlyChatApproved, setOnlyChatApproved] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
   const [slotForm, setSlotForm] = useState({
     date: '',
     start: '09:00',
@@ -114,6 +149,18 @@ export default function LawyerDashboard() {
 
       const allNotes = readJSON(LAWYER_NOTES_KEY, {});
       setNotesMap(allNotes[notesKey] || {});
+
+      const preferencesMap = readJSON(LAWYER_PREFERENCES_KEY, {});
+      const prefs = preferencesMap[lawyerKey] || {};
+      setWorkStatus(String(prefs.workStatus || 'online'));
+      setOnlyUrgent(Boolean(prefs.onlyUrgent));
+      setOnlyChatApproved(Boolean(prefs.onlyChatApproved));
+
+      const allAnnouncements = readJSON(ADMIN_ANNOUNCEMENTS_KEY, []);
+      const scopedAnnouncements = Array.isArray(allAnnouncements)
+        ? allAnnouncements.filter((item) => ['all', 'lawyers'].includes(String(item?.target || 'all'))).slice(0, 6)
+        : [];
+      setAnnouncements(scopedAnnouncements);
 
       const chatList = await listSupportConversations();
       setConversations(Array.isArray(chatList) ? chatList : []);
@@ -150,11 +197,14 @@ export default function LawyerDashboard() {
       const matchesStatus = statusFilter === 'all' || status === statusFilter;
       if (!matchesStatus) return false;
 
+      if (onlyUrgent && !isUrgentApplication(item)) return false;
+      if (onlyChatApproved && item?.chatApproved === false) return false;
+
       if (!query) return true;
       const haystack = `${item?.title || ''} ${item?.subject || ''} ${item?.description || ''} ${item?.text || ''} ${item?.userEmail || ''} ${item?.clientEmail || ''}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [applications, searchText, statusFilter]);
+  }, [applications, onlyChatApproved, onlyUrgent, searchText, statusFilter]);
 
   const upcomingSlots = useMemo(() => {
     return slots
@@ -172,6 +222,38 @@ export default function LawyerDashboard() {
     const resolved = applications.filter((item) => ['resolved', 'closed'].includes(String(item?.status || '').toLowerCase())).length;
     return Math.round((resolved / total) * 100);
   }, [applications]);
+
+  const averageResolutionDays = useMemo(() => {
+    const resolved = applications.filter((item) => ['resolved', 'closed'].includes(String(item?.status || '').toLowerCase()));
+    if (!resolved.length) return null;
+    const days = resolved.map((item) => {
+      const created = new Date(item?.createdAt || item?.created_at || item?.submittedAt || Date.now()).getTime();
+      const updated = new Date(item?.lawyerUpdatedAt || item?.updatedAt || Date.now()).getTime();
+      if (!Number.isFinite(created) || !Number.isFinite(updated) || updated < created) return 0;
+      return (updated - created) / (24 * 60 * 60 * 1000);
+    });
+    const avg = days.reduce((sum, value) => sum + value, 0) / days.length;
+    return Number(avg.toFixed(1));
+  }, [applications]);
+
+  const persistPreferences = useCallback((patch) => {
+    if (!lawyerKey) return;
+    const map = readJSON(LAWYER_PREFERENCES_KEY, {});
+    map[lawyerKey] = {
+      ...(map[lawyerKey] || {}),
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    writeJSON(LAWYER_PREFERENCES_KEY, map);
+  }, [lawyerKey]);
+
+  useEffect(() => {
+    persistPreferences({
+      workStatus,
+      onlyUrgent,
+      onlyChatApproved,
+    });
+  }, [onlyChatApproved, onlyUrgent, persistPreferences, workStatus]);
 
   const persistSlots = (nextSlots) => {
     setSlots(nextSlots);
@@ -268,6 +350,24 @@ export default function LawyerDashboard() {
     setNotice('Bo\'sh vaqt o\'chirildi');
   };
 
+  const handleExportApplications = () => {
+    const rows = [
+      ['ID', 'Sarlavha', 'Mijoz', 'Holat', 'Chat ruxsati', 'Shoshilinch', 'Yaratilgan'],
+      ...filteredApplications.map((item, idx) => ([
+        String(item?.id || item?._id || idx),
+        item?.title || item?.subject || 'Nomsiz ariza',
+        item?.userEmail || item?.clientEmail || '-',
+        item?.status || 'assigned',
+        item?.chatApproved === false ? 'pending' : 'approved',
+        isUrgentApplication(item) ? 'yes' : 'no',
+        item?.createdAt || item?.created_at || item?.submittedAt || '-',
+      ])),
+    ];
+
+    downloadCsv(rows, `lawyer_applications_${new Date().toISOString().slice(0, 10)}.csv`);
+    setNotice('Arizalar CSV formatida yuklab olindi');
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/', { replace: true });
@@ -283,9 +383,9 @@ export default function LawyerDashboard() {
 
   return (
     <div className="min-h-screen pt-28 pb-20 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="section-wrap">
         <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6">
-          <aside className="lg:sticky lg:top-28 self-start bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm p-4">
+          <aside className="lg:sticky lg:top-28 self-start surface-card rounded-3xl p-4">
             <div className="px-2 pb-4 border-b border-slate-100 dark:border-slate-700">
               <p className="text-xs uppercase tracking-wide text-slate-500">Advokat panel</p>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white truncate">{user?.name || 'Advokat'}</h2>
@@ -350,12 +450,71 @@ export default function LawyerDashboard() {
               </div>
             )}
 
+            {announcements.length > 0 && (
+              <div className="mb-5 rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Admin e’lonlari</p>
+                <div className="space-y-2">
+                  {announcements.map((item) => (
+                    <div key={item.id} className="rounded-xl border border-blue-200/80 dark:border-blue-800/70 bg-white/70 dark:bg-slate-900/40 px-3 py-2">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(item.createdAt).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-slate-700 dark:text-slate-200 mt-1">{item.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
               <StatBox icon={ShieldCheck} title="Jarayondagi ariza" value={stats.pendingApplications} />
               <StatBox icon={Clock3} title="Chat tasdiq kutmoqda" value={stats.pendingChatApprovals} />
               <StatBox icon={MessageSquare} title="Faol chat" value={stats.activeChats} />
               <StatBox icon={CalendarClock} title="Bo\'sh vaqtlar" value={stats.slots} />
               <StatBox icon={Sparkles} title="Shoshilinch ish" value={stats.urgentApplications} />
+            </div>
+
+            <div className="mb-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Joriy ish holati</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {WORK_STATUS_OPTIONS.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setWorkStatus(item.value)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                          workStatus === item.value
+                            ? item.value === 'online'
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : item.value === 'busy'
+                                ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                : 'bg-slate-200 text-slate-700 border-slate-300'
+                            : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2">
+                    <p className="text-xs text-slate-500">Yakunlash tezligi</p>
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      {averageResolutionDays === null ? '-' : `${averageResolutionDays} kun`}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2">
+                    <p className="text-xs text-slate-500">Ish yangilanishi</p>
+                    <p className="font-bold text-slate-900 dark:text-white inline-flex items-center gap-1">
+                      <TimerReset size={14} className="text-blue-500" />
+                      Real-time
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {loading ? (
@@ -413,6 +572,12 @@ export default function LawyerDashboard() {
                         <p className="text-xs text-slate-500">
                           Umumiy ariza: {applications.length} ta
                         </p>
+                        <p className="text-xs text-slate-500">
+                          O‘rtacha yakunlash: {averageResolutionDays === null ? '-' : `${averageResolutionDays} kun`}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Joriy status: <b className="text-slate-700 dark:text-slate-200">{WORK_STATUS_OPTIONS.find((item) => item.value === workStatus)?.label || workStatus}</b>
+                        </p>
                       </div>
                     </Card>
                   </div>
@@ -441,6 +606,40 @@ export default function LawyerDashboard() {
                         ))}
                       </select>
                     </div>
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setOnlyUrgent((prev) => !prev)}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg border ${
+                            onlyUrgent
+                              ? 'bg-rose-100 text-rose-700 border-rose-200'
+                              : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          Faqat shoshilinch
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOnlyChatApproved((prev) => !prev)}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg border ${
+                            onlyChatApproved
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          Faqat chat ochiq
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleExportApplications}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-slate-700"
+                      >
+                        <Download size={13} />
+                        CSV yuklash
+                      </button>
+                    </div>
 
                     {filteredApplications.length === 0 ? (
                       <Empty text="Filtrga mos ariza topilmadi." />
@@ -458,9 +657,17 @@ export default function LawyerDashboard() {
                                 <div className="min-w-0">
                                   <p className="font-semibold text-slate-900 dark:text-white truncate">{item.title || item.subject || 'Nomsiz ariza'}</p>
                                   <p className="text-xs text-slate-500 mt-1">Mijoz: {item.userEmail || item.clientEmail || '-'}</p>
+                                  <p className="text-[11px] text-slate-400 mt-1">
+                                    Yaratilgan: {item.createdAt || item.created_at || item.submittedAt || '-'}
+                                  </p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   {urgent && <span className="text-[11px] px-2 py-1 rounded-full bg-rose-100 text-rose-700">Shoshilinch</span>}
+                                  <span className={`text-[11px] px-2 py-1 rounded-full ${
+                                    urgent ? 'bg-rose-100 text-rose-700' : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    Prioritet: {urgent ? 'Yuqori' : 'Normal'}
+                                  </span>
                                   <span className={`text-[11px] px-2 py-1 rounded-full ${statusBadgeClass(item.status)}`}>
                                     {String(item.status || 'assigned')}
                                   </span>
@@ -622,7 +829,7 @@ function Card({ title, icon, children }) {
   const Icon = icon || ShieldCheck;
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 p-5">
+    <div className="surface-card rounded-3xl p-5">
       <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 inline-flex items-center gap-2">
         <Icon size={18} className="text-[var(--color-primary)] dark:text-blue-400" />
         {title}
@@ -634,7 +841,7 @@ function Card({ title, icon, children }) {
 
 function StatBox({ icon, title, value }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 flex items-center gap-3">
+    <div className="surface-card rounded-2xl p-4 flex items-center gap-3">
       <div className="w-11 h-11 rounded-xl bg-[var(--color-primary)] text-white flex items-center justify-center">
         {React.createElement(icon, { size: 20 })}
       </div>

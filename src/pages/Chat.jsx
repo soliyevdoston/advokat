@@ -1,10 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
+import { CreditCard, Lock, Sparkles } from 'lucide-react';
 import { lawyers } from '../data/lawyers';
 import ChatInterface from '../components/chat/ChatInterface';
 import SupportChat from '../components/chat/SupportChat';
 import { useAuth } from '../context/AuthContext';
 import { clearQuickLegalCheck, readQuickLegalCheck } from '../utils/quickLegalCheck';
+import Button from '../components/ui/Button';
+import { openPaymentGateway } from '../utils/paymentGate';
+import {
+  activateSubscription,
+  createPendingSubscription,
+  hasActiveSubscription,
+} from '../utils/subscription';
 
 /**
  * ChatPage — /chat/:type va /chat/:type/:id
@@ -21,6 +29,8 @@ export default function ChatPage() {
   const { type, id } = useParams();
   const resolvedType = type || 'ai';
   const [quickPrompt, setQuickPrompt] = useState('');
+  const [gateVersion, setGateVersion] = useState(0);
+  const [gateError, setGateError] = useState('');
   const quickCheckPayload = useMemo(() => {
     if (!user) return null;
     const payload = readQuickLegalCheck();
@@ -51,6 +61,49 @@ export default function ChatPage() {
           from: { pathname: location.pathname },
           source: 'chat_gate',
         }}
+      />
+    );
+  }
+
+  const lawyerChatLocked = resolvedType === 'lawyer'
+    && user?.role === 'user'
+    && !hasActiveSubscription(user);
+
+  if (lawyerChatLocked) {
+    return (
+      <LawyerSubscriptionGate
+        onPaid={(gateway) => {
+          setGateError('');
+          createPendingSubscription({
+            user,
+            gateway,
+            amount: 149000,
+            plan: 'PRO',
+          });
+          const opened = openPaymentGateway({
+            gateway,
+            amount: 149000,
+            plan: 'pro_lawyer_chat',
+            userEmail: user?.email || '',
+          });
+          if (opened) {
+            activateSubscription({
+              user,
+              gateway,
+              amount: 149000,
+              plan: 'PRO',
+            });
+            setGateVersion((prev) => prev + 1);
+            return;
+          }
+          setGateError(`${gateway.toUpperCase()} to‘lov sozlanmagan. .env konfiguratsiyasini tekshiring.`);
+        }}
+        onRefresh={() => {
+          setGateError('');
+          setGateVersion((prev) => prev + 1);
+        }}
+        gateVersion={gateVersion}
+        error={gateError}
       />
     );
   }
@@ -131,6 +184,59 @@ export default function ChatPage() {
           quickCheckTitle={quickCheckPayload?.recommendationTitle || ''}
           quickCheckPayload={quickCheckPayload}
         />
+      </div>
+    </div>
+  );
+}
+
+function LawyerSubscriptionGate({ onPaid, onRefresh, gateVersion, error }) {
+  return (
+    <div className="pt-28 pb-20 bg-gray-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 md:p-8 shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-xs font-semibold">
+            <Lock size={13} />
+            Pro obuna talab qilinadi
+          </div>
+          <h1 className="mt-3 text-2xl md:text-3xl font-serif font-bold text-slate-900 dark:text-white">
+            Advokat bilan chatni boshlash uchun PRO obuna kerak
+          </h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            AI javobi bepul. Jonli advokat chatiga o‘tish Click/Payme to‘lovidan keyin avtomatik ochiladi.
+          </p>
+
+          <div className="mt-5 grid sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => onPaid('click')}
+              className="w-full px-4 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 inline-flex items-center justify-center gap-2"
+            >
+              <CreditCard size={16} />
+              CLICK bilan to‘lash
+            </button>
+            <button
+              type="button"
+              onClick={() => onPaid('payme')}
+              className="w-full px-4 py-3 rounded-xl bg-[#1f3bff] text-white font-semibold hover:opacity-90 inline-flex items-center justify-center gap-2"
+            >
+              <CreditCard size={16} />
+              PAYME bilan to‘lash
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={onRefresh} className="text-sm">
+              To‘lov holatini yangilash
+            </Button>
+            <span className="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+              <Sparkles size={12} />
+              Holat tekshiruvi: #{gateVersion}
+            </span>
+          </div>
+          {error && (
+            <p className="mt-3 text-xs text-red-600 dark:text-red-400">{error}</p>
+          )}
+        </div>
       </div>
     </div>
   );

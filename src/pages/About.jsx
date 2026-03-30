@@ -1,290 +1,211 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Shield, Users, Trophy, Target, CheckCircle2, ArrowRight, UserPlus, Search, MessageSquare, Gavel } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import {
+  ArrowRight,
+  BadgeCheck,
+  FileCheck2,
+  Handshake,
+  LockKeyhole,
+  Scale,
+  ShieldCheck,
+  Users2,
+} from 'lucide-react';
 import Button from '../components/ui/Button';
-import { useLanguage } from '../context/LanguageContext';
-const MotionDiv = motion.div;
-const readJSON = (key, fallback) => {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-};
+import { loadPlatformStats } from '../utils/platformStats';
 
-export default function About() {
-  const { t } = useLanguage();
-  const [tick, setTick] = useState(0);
+const TRUST_POINTS = [
+  {
+    title: 'Malakali advokatlar jamoasi',
+    text: 'Platformada turli yo\'nalishlarda amaliy tajribaga ega professional advokatlar ishlaydi.',
+    icon: Scale,
+  },
+  {
+    title: 'Shaffof ish oqimi',
+    text: 'AI tahlildan keyin mijoz murojaati mos advokat kabinetiga biriktiriladi va status kuzatib boriladi.',
+    icon: FileCheck2,
+  },
+  {
+    title: 'Maxfiylik va xavfsizlik',
+    text: 'Suhbatlar, hujjatlar va jarayonlar nazoratli kanal orqali yuritiladi.',
+    icon: LockKeyhole,
+  },
+];
 
-  useEffect(() => {
-    const id = setInterval(() => setTick((prev) => prev + 1), 10000);
-    return () => clearInterval(id);
-  }, []);
+const FLOW = [
+  {
+    title: '1. Ro\'yxatdan o\'tish',
+    text: 'Foydalanuvchi kabinet ochadi va murojaatni chat orqali boshlaydi.',
+  },
+  {
+    title: '2. AI triage',
+    text: 'Masala turi, shoshilinchlik va kerakli hujjatlar bo\'yicha boshlang\'ich yo\'nalish beriladi.',
+  },
+  {
+    title: '3. Advokatga yo\'naltirish',
+    text: 'Tanlangan yo\'nalish bo\'yicha advokatga murojaat va fayllar avtomatik biriktiriladi.',
+  },
+  {
+    title: '4. Nazorat va natija',
+    text: 'Jarayon holati, to\'lov va hujjatlar bir kabinet ichida boshqariladi.',
+  },
+];
 
-  const liveMetrics = useMemo(() => {
-    const users = readJSON('advokat_local_users_v1', []);
-    const applications = readJSON('legallink_user_applications_v1', []);
-    const chats = readJSON('advokat_support_conversations_v1', []);
-    const bookings = readJSON('legallink_contact_bookings_v1', []);
-
-    return {
-      users: Array.isArray(users) ? users.length : 0,
-      applications: Array.isArray(applications) ? applications.length : 0,
-      chats: Array.isArray(chats) ? chats.length : 0,
-      bookings: Array.isArray(bookings) ? bookings.length : 0,
-      updatedAt: new Date().toLocaleTimeString(),
-    };
-  }, [tick]);
-
-  const stats = [
-    { label: t('about_page.stats.exp'), value: "10+", icon: Trophy },
-    { label: t('about_page.stats.lawyers'), value: "50+", icon: Users },
-    { label: t('about_page.stats.cases'), value: "1500+", icon: CheckCircle2 },
-    { label: t('about_page.stats.satisfaction'), value: "98%", icon: Target },
-  ];
-
-  const values = [
-    {
-      title: t('about_page.values.items.pro.title'),
-      desc: t('about_page.values.items.pro.desc'),
-      icon: <Shield className="w-6 h-6 text-white" />,
-      color: "bg-blue-600"
-    },
-    {
-      title: t('about_page.values.items.transparency.title'),
-      desc: t('about_page.values.items.transparency.desc'),
-      icon: <CheckCircle2 className="w-6 h-6 text-white" />,
-      color: "bg-green-600"
-    },
-    {
-      title: t('about_page.values.items.innovation.title'),
-      desc: t('about_page.values.items.innovation.desc'),
-      icon: <Target className="w-6 h-6 text-white" />,
-      color: "bg-purple-600"
-    }
-  ];
-
+function StatCard({ label, value, icon: Icon, loading }) {
   return (
-    <div className="bg-white dark:bg-slate-900 min-h-screen transition-colors duration-300">
-      {/* Hero Background Section */}
-      {/* Hero Section */}
-      <div className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-        <div className="absolute inset-0 z-0">
-            <img 
-                src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=2000" 
-                alt="Background" 
-                className="w-full h-full object-cover opacity-10 dark:opacity-5"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-50/0 via-slate-50/50 to-slate-50 dark:from-slate-900/0 dark:via-slate-900/50 dark:via-slate-900/80 dark:to-slate-900" />
+    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <Icon size={20} className="text-[var(--color-primary)]" />
+      {loading ? (
+        <div className="mt-3 space-y-2 animate-pulse">
+          <div className="h-8 w-20 rounded bg-slate-100" />
+          <div className="h-4 w-32 rounded bg-slate-100" />
         </div>
-
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center gap-12">
-            <MotionDiv 
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="lg:w-1/2"
-            >
-              <div className="inline-block px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-bold mb-6">
-                LegalLink Platform
-              </div>
-              <h1 className="text-4xl lg:text-5xl font-serif font-bold text-slate-900 dark:text-white mb-6 leading-tight">
-                {t('about_page.hero.title')}
-              </h1>
-              <p className="text-lg text-slate-600 dark:text-slate-300 mb-8 leading-relaxed">
-                {t('about_page.hero.subtitle')}
-              </p>
-              <Link to="/lawyers">
-                <Button size="lg" className="shadow-xl shadow-blue-500/20">
-                  {t('about_page.hero.btn')}
-                </Button>
-              </Link>
-            </MotionDiv>
-
-            <MotionDiv 
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="lg:w-1/2 relative"
-            >
-              <div className="absolute -inset-4 bg-blue-600/20 rounded-3xl blur-2xl transform rotate-3" />
-              <img 
-                src="https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&q=80&w=1000" 
-                alt="Our Team" 
-                className="relative rounded-3xl shadow-2xl border border-white/20"
-              />
-            </MotionDiv>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-24">
-          {stats.map((stat, index) => (
-            <div key={index} className="text-center p-6 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-all duration-300 group">
-              <div className="w-12 h-12 bg-white dark:bg-slate-700 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:scale-110 transition-transform">
-                <stat.icon className="w-6 h-6 text-[var(--color-secondary)] dark:text-yellow-500" />
-              </div>
-              <h3 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{stat.value}</h3>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mb-24 rounded-[2rem] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 md:p-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-            <div>
-              <h3 className="text-2xl font-serif font-bold text-slate-900 dark:text-white">Live Transparency Panel</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Platformadagi faoliyat ko‘rsatkichlari real-time tarzda yangilanadi.</p>
-            </div>
-            <span className="text-xs px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-              Yangilanish: {liveMetrics.updatedAt}
-            </span>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricCard label="Ro‘yxatdan o‘tganlar" value={liveMetrics.users} />
-            <MetricCard label="Kelgan arizalar" value={liveMetrics.applications} />
-            <MetricCard label="Ochiq chatlar" value={liveMetrics.chats} />
-            <MetricCard label="Bron qilingan slotlar" value={liveMetrics.bookings} />
-          </div>
-        </div>
-
-        {/* Our Mission Section */}
-        <div className="flex flex-col lg:flex-row items-center gap-12 mb-24">
-            <div className="lg:w-1/2">
-                <img 
-                    src="https://images.unsplash.com/photo-1589578527966-fdac0f44566c?auto=format&fit=crop&q=80&w=1000" 
-                    alt="Our Mission" 
-                    className="rounded-3xl shadow-xl w-full h-auto object-cover"
-                />
-            </div>
-            <div className="lg:w-1/2">
-                <div className="inline-block px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-bold mb-4">
-                    {t('about_page.mission.tag')}
-                </div>
-                <h2 className="text-3xl md:text-4xl font-serif font-bold text-slate-900 dark:text-white mb-6">
-                    {t('about_page.mission.title')}
-                </h2>
-                <p className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
-                    {t('about_page.mission.desc')}
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                     <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
-                        <CheckCircle2 className="text-green-500" size={20} /> {t('about_page.mission.items.support')}
-                     </div>
-                     <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
-                        <CheckCircle2 className="text-green-500" size={20} /> {t('about_page.mission.items.ai')}
-                     </div>
-                     <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
-                        <CheckCircle2 className="text-green-500" size={20} /> {t('about_page.mission.items.top')}
-                     </div>
-                     <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
-                        <CheckCircle2 className="text-green-500" size={20} /> {t('about_page.mission.items.secure')}
-                     </div>
-                </div>
-            </div>
-        </div>
-
-        {/* Process Section */}
-        <div className="mb-24 text-center">
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-slate-900 dark:text-white mb-4">
-                {t('about_page.process.title')}
-            </h2>
-            <p className="text-slate-600 dark:text-slate-300 max-w-2xl mx-auto mb-12">
-                {t('about_page.process.subtitle')}
-            </p>
-
-            <div className="grid md:grid-cols-4 gap-8">
-                {[
-                    { icon: UserPlus, step: 1, color: "bg-blue-100 text-blue-600" },
-                    { icon: Search, step: 2, color: "bg-purple-100 text-purple-600" },
-                    { icon: MessageSquare, step: 3, color: "bg-orange-100 text-orange-600" },
-                    { icon: Gavel, step: 4, color: "bg-green-100 text-green-600" }
-                ].map((item, index) => (
-                    <div key={index} className="relative group">
-                         {index < 3 && (
-                            <div className="hidden md:block absolute top-8 left-1/2 w-full h-0.5 bg-slate-200 dark:bg-slate-700 -z-10" />
-                         )}
-                         <div className={`w-16 h-16 ${item.color} rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm text-2xl group-hover:scale-110 transition-transform`}>
-                            <item.icon size={32} />
-                         </div>
-                         <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-                            {t(`about_page.process.steps.${item.step}.title`)}
-                         </h3>
-                         <p className="text-sm text-slate-600 dark:text-slate-400">
-                            {t(`about_page.process.steps.${item.step}.desc`)}
-                         </p>
-                    </div>
-                ))}
-            </div>
-        </div>
-
-        {/* Values Section */}
-        <div className="mb-24">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-slate-900 dark:text-white mb-4">{t('about_page.values.title')}</h2>
-            <p className="text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
-              {t('about_page.values.subtitle')}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {values.map((item, index) => (
-              <div key={index} className="bg-slate-50 dark:bg-slate-800 p-8 rounded-[2rem] hover:bg-white dark:hover:bg-slate-700 hover:shadow-xl transition-all duration-300 border border-transparent hover:border-slate-100 dark:hover:border-slate-600">
-                <div className={`w-14 h-14 ${item.color} rounded-2xl flex items-center justify-center mb-6 shadow-lg`}>
-                  {item.icon}
-                </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">{item.title}</h3>
-                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {item.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* CTA Section */}
-        <div className="bg-[var(--color-primary)] rounded-[3rem] p-12 md:p-24 text-center relative overflow-hidden">
-           <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-              <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full mix-blend-overlay filter blur-3xl"></div>
-              <div className="absolute bottom-0 right-0 w-96 h-96 bg-[var(--color-secondary)] rounded-full mix-blend-overlay filter blur-3xl"></div>
-           </div>
-           
-           <div className="relative z-10 max-w-3xl mx-auto">
-             <h2 className="text-3xl md:text-5xl font-serif font-bold text-white mb-6">{t('about_page.cta.title')}</h2>
-             <p className="text-blue-100 text-lg mb-10 leading-relaxed">
-               {t('about_page.cta.desc')}
-             </p>
-             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-               <Link to="/chat">
-                 <Button className="bg-white text-[var(--color-primary)] hover:bg-blue-50 border-none px-8 py-4 h-auto text-lg w-full sm:w-auto">
-                   {t('about_page.cta.btn_ai')}
-                 </Button>
-               </Link>
-               <Link to="/lawyers">
-                 <Button variant="outline" className="border-white text-white hover:bg-white/10 px-8 py-4 h-auto text-lg w-full sm:w-auto">
-                   {t('about_page.cta.btn_lawyer')}
-                 </Button>
-               </Link>
-             </div>
-           </div>
-        </div>
-
-      </div>
+      ) : (
+        <>
+          <p className="mt-3 text-3xl font-bold text-slate-900">{value}</p>
+          <p className="mt-1 text-sm text-slate-600">{label}</p>
+        </>
+      )}
     </div>
   );
 }
 
-function MetricCard({ label, value }) {
+export default function About() {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const run = async () => {
+      setLoading(true);
+      const payload = await loadPlatformStats();
+      if (!active) return;
+      setStats(payload);
+      setLoading(false);
+    };
+
+    run();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const kpis = useMemo(() => {
+    const totalUsers = Number(stats?.totalUsers || 0);
+    const totalLawyers = Number(stats?.totalLawyers || 0);
+    const resolvedCases = Number(stats?.resolvedCases || 0);
+
+    const resolvedRate = totalUsers > 0
+      ? `${Math.min(100, Math.round((resolvedCases / totalUsers) * 100))}%`
+      : '0%';
+
+    return {
+      users: totalUsers > 0 ? `${totalUsers}+` : '0',
+      lawyers: totalLawyers > 0 ? `${totalLawyers}+` : '0',
+      resolved: resolvedCases > 0 ? `${resolvedCases}+` : '0',
+      resolvedRate,
+    };
+  }, [stats?.resolvedCases, stats?.totalLawyers, stats?.totalUsers]);
+
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 px-4 py-4">
-      <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label}</p>
-      <p className="text-3xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
+    <div className="min-h-screen bg-slate-50">
+      <section className="pt-32 pb-16 md:pt-36 md:pb-20 bg-[linear-gradient(180deg,#eef4fb_0%,#f8fafc_100%)] border-b border-slate-200">
+        <div className="section-wrap grid lg:grid-cols-[1.15fr_0.85fr] gap-8 items-start">
+          <div>
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--color-primary-300)] bg-white text-[var(--color-primary)] text-xs font-semibold">
+              <ShieldCheck size={14} />
+              LegalLink haqida
+            </span>
+            <h1 className="mt-4 text-4xl md:text-6xl font-bold text-slate-900 leading-tight">
+              Ishonchli yuridik platforma
+              <span className="text-[var(--color-primary)]"> real mutaxassislar</span>
+              {' '}bilan
+            </h1>
+            <p className="mt-5 text-lg text-slate-600 max-w-3xl leading-relaxed">
+              LegalLink foydalanuvchini AI tahlil orqali tez yo\'naltiradi va kerakli holatda tajribali advokat bilan
+              birlashtiradi. Maqsadimiz: huquqiy jarayonni tez, shaffof va boshqariladigan qilish.
+            </p>
+
+            <div className="mt-7 flex flex-col sm:flex-row gap-3">
+              <Link to="/chat/ai">
+                <Button className="px-7 h-12 text-sm">
+                  AI bilan boshlash
+                </Button>
+              </Link>
+              <Link to="/lawyers">
+                <Button variant="outline" className="px-7 h-12 text-sm">
+                  Advokatlar ro\'yxati
+                  <ArrowRight size={16} className="ml-2" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <StatCard label="Ro\'yxatdan o\'tgan foydalanuvchi" value={kpis.users} loading={loading} icon={Users2} />
+            <StatCard label="Faol advokatlar" value={kpis.lawyers} loading={loading} icon={Scale} />
+            <StatCard label="Yakunlangan ishlar" value={kpis.resolved} loading={loading} icon={BadgeCheck} />
+            <StatCard label="Ijobiy hal ko\'rsatkich" value={kpis.resolvedRate} loading={loading} icon={Handshake} />
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 md:py-20">
+        <div className="section-wrap">
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Nima uchun bizga ishonishadi</h2>
+          <p className="mt-3 text-slate-600 max-w-3xl">
+            Platforma faqat vizual emas, amaliy ish jarayoniga qurilgan: murojaat, hujjat, chat va nazorat bir tizimda.
+          </p>
+
+          <div className="mt-8 grid md:grid-cols-3 gap-4">
+            {TRUST_POINTS.map((item) => (
+              <article key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6">
+                <div className="w-11 h-11 rounded-xl bg-[var(--color-primary-50)] inline-flex items-center justify-center">
+                  <item.icon size={20} className="text-[var(--color-primary)]" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-2 text-sm text-slate-600 leading-relaxed">{item.text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 md:py-20 bg-white border-y border-slate-200">
+        <div className="section-wrap">
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Ishlash jarayoni</h2>
+          <div className="mt-8 grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {FLOW.map((step) => (
+              <div key={step.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <h3 className="text-base font-semibold text-slate-900">{step.title}</h3>
+                <p className="mt-2 text-sm text-slate-600 leading-relaxed">{step.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 md:py-20">
+        <div className="section-wrap">
+          <div className="rounded-3xl border border-slate-200 bg-[var(--color-surface-900)] text-white p-8 md:p-12">
+            <h2 className="text-3xl md:text-5xl font-bold">Yuridik masalangizni tizimli hal qilamiz</h2>
+            <p className="mt-4 text-slate-200 max-w-3xl">
+              Boshlanish AI orqali bepul. Jonli advokat bilan ishlash bosqichi obuna yo\'li bilan faollashadi va
+              jarayon real kabinetlarda davom etadi.
+            </p>
+            <div className="mt-7 flex flex-col sm:flex-row gap-3">
+              <Link to="/chat/ai">
+                <Button className="px-7 h-12 text-sm">Chatni ochish</Button>
+              </Link>
+              <Link to="/contact">
+                <Button variant="outline" className="px-7 h-12 text-sm border-slate-500 text-white hover:bg-white/10">
+                  Aloqa markazi
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

@@ -9,6 +9,12 @@ import { buildApiUrl } from '../../config/appConfig';
 import { DOCUMENT_FREE_QUOTA_KEY } from '../../utils/documentQuota';
 import { saveQuickLegalCheck } from '../../utils/quickLegalCheck';
 import { lawyers } from '../../data/lawyers';
+import { openPaymentGateway } from '../../utils/paymentGate';
+import {
+  activateSubscription,
+  createPendingSubscription,
+  hasActiveSubscription,
+} from '../../utils/subscription';
 const MotionDiv = motion.div;
 
 // Chat turlariga mos endpoint
@@ -139,6 +145,7 @@ export default function ChatInterface({
   const [isLoading, setIsLoading] = useState(false);
   const [handoffLoading, setHandoffLoading] = useState(false);
   const [handoffError, setHandoffError] = useState('');
+  const [needsProSubscription, setNeedsProSubscription] = useState(false);
   const [lastAssistantMeta, setLastAssistantMeta] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [freeDocumentRemaining, setFreeDocumentRemaining] = useState(true);
@@ -377,7 +384,7 @@ export default function ChatInterface({
     return created;
   }, [isProMode, proPriceUzs, quickTopic, sendApplicationToApi, user]);
 
-  const connectToLawyer = useCallback(async () => {
+  const routeToLawyerChat = useCallback(async () => {
     if (!recommendedLawyer) return;
 
     const recentUserContext = messages
@@ -423,6 +430,57 @@ export default function ChatInterface({
     quickTopic,
     recommendedLawyer,
   ]);
+
+  const connectToLawyer = useCallback(async () => {
+    if (!recommendedLawyer) return;
+
+    if (isProMode && !hasActiveSubscription(user)) {
+      setNeedsProSubscription(true);
+      setHandoffError("Advokat bilan yozishni boshlash uchun PRO obunani faollashtiring.");
+      return;
+    }
+
+    setNeedsProSubscription(false);
+    setHandoffError('');
+    await routeToLawyerChat();
+  }, [isProMode, recommendedLawyer, routeToLawyerChat, user]);
+
+  const handleProPayment = useCallback(async (gateway) => {
+    if (!user) {
+      setHandoffError("To'lovdan oldin tizimga kiring.");
+      return;
+    }
+
+    createPendingSubscription({
+      user,
+      gateway,
+      amount: proPriceUzs,
+      plan: 'PRO',
+    });
+
+    const opened = openPaymentGateway({
+      gateway,
+      amount: proPriceUzs,
+      plan: 'pro_lawyer_chat',
+      userEmail: user?.email || '',
+    });
+
+    if (!opened) {
+      setHandoffError(`${gateway.toUpperCase()} to‘lov linki topilmadi. .env ni tekshiring.`);
+      return;
+    }
+
+    activateSubscription({
+      user,
+      gateway,
+      amount: proPriceUzs,
+      plan: 'PRO',
+    });
+
+    setNeedsProSubscription(false);
+    setHandoffError('');
+    await routeToLawyerChat();
+  }, [proPriceUzs, routeToLawyerChat, user]);
 
   const sendMessage = useCallback(async (rawText) => {
     const text = String(rawText || '').trim();
@@ -848,9 +906,27 @@ export default function ChatInterface({
                   </Button>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
                 Bu tugma bosilganda ariza tanlangan advokat kabinetiga yuboriladi.
               </p>
+              {needsProSubscription && (
+                <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 p-3">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    PRO obuna talab qilinadi
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                    To‘lovdan keyin advokat bilan suhbat avtomatik ochiladi.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button type="button" onClick={() => { void handleProPayment('click'); }} className="text-xs py-2 h-auto">
+                      CLICK bilan to‘lash
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => { void handleProPayment('payme'); }} className="text-xs py-2 h-auto">
+                      PAYME bilan to‘lash
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {handoffError && (

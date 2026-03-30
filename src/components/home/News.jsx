@@ -1,67 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, Loader2, Newspaper } from 'lucide-react';
+import { ArrowRight, Newspaper } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
-import { buildApiUrl } from '../../config/appConfig';
-
-const NEWS_ENDPOINTS = ['/news', '/api/news'];
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=1200';
-const TOKEN_KEY = 'advokat_auth_token';
-
-const getAuthHeaders = () => {
-  try {
-    const token = localStorage.getItem(TOKEN_KEY);
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch {
-    return {};
-  }
-};
-
-const parsePayload = (payload) => {
-  const list = Array.isArray(payload) ? payload : payload?.news || payload?.data || payload?.items || [];
-  if (!Array.isArray(list)) return [];
-
-  return list.slice(0, 4).map((item, index) => ({
-    id: String(item.id || item._id || item.slug || `home_news_${index}`),
-    title: item.title || "Yangi yangilik",
-    excerpt: item.excerpt || item.summary || item.content || item.text || '',
-    image: item.image || item.imageUrl || item.thumbnail || FALLBACK_IMAGE,
-    date: item.created_at || item.createdAt || item.publishedAt || item.date || new Date().toISOString(),
-  }));
-};
-
-async function fetchNewsPreview() {
-  let lastError = null;
-
-  for (const endpoint of NEWS_ENDPOINTS) {
-    try {
-      const response = await fetch(buildApiUrl(endpoint), {
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const err = new Error(data?.message || data?.error || `Server xatosi: ${response.status}`);
-        err.status = response.status;
-        throw err;
-      }
-      return parsePayload(data);
-    } catch (err) {
-      lastError = err;
-      if (err?.status === 401 || err?.status === 403 || err?.status === 404 || err?.status === 405) continue;
-      throw err;
-    }
-  }
-
-  throw lastError || new Error('News endpoint topilmadi');
-}
+import { pickNewsFallbackImage } from '../../utils/newsImages';
+import { fetchUzaNews } from '../../utils/uzaNews';
 
 const formatDate = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short', year: 'numeric' });
 };
+
+function HomeNewsSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 animate-pulse">
+      {[1, 2, 3, 4].map((item) => (
+        <div key={`home_news_skeleton_${item}`} className="surface-card p-4 rounded-2xl border border-slate-100">
+          <div className="h-44 rounded-xl bg-slate-100 mb-4" />
+          <div className="h-5 w-11/12 bg-slate-100 rounded-md mb-2" />
+          <div className="h-5 w-4/5 bg-slate-100 rounded-md mb-3" />
+          <div className="h-4 w-full bg-slate-100 rounded-md mb-2" />
+          <div className="h-4 w-10/12 bg-slate-100 rounded-md mb-3" />
+          <div className="h-4 w-2/5 bg-slate-100 rounded-md" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function News() {
   const { t } = useLanguage();
@@ -73,10 +38,12 @@ export default function News() {
 
     const load = async () => {
       try {
-        const data = await fetchNewsPreview();
-        if (!cancelled) setNewsItems(data);
+        const list = await fetchUzaNews({ limit: 8 });
+        if (cancelled) return;
+        setNewsItems(list.slice(0, 4));
       } catch {
-        if (!cancelled) setNewsItems([]);
+        if (cancelled) return;
+        setNewsItems([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -102,9 +69,7 @@ export default function News() {
         </div>
 
         {loading ? (
-          <div className="py-10 flex items-center justify-center text-slate-500 dark:text-slate-400">
-            <Loader2 size={20} className="animate-spin mr-2" /> Yangiliklar yuklanmoqda...
-          </div>
+          <HomeNewsSkeleton />
         ) : newsItems.length === 0 ? (
           <div className="py-12 text-center rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
             Hozircha yangiliklar mavjud emas.
@@ -121,6 +86,12 @@ export default function News() {
                   <img
                     src={item.image}
                     alt={item.title}
+                    onError={(event) => {
+                      const fallback = pickNewsFallbackImage(item.id || item.title);
+                      if (event.currentTarget.src !== fallback) {
+                        event.currentTarget.src = fallback;
+                      }
+                    }}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
@@ -133,7 +104,7 @@ export default function News() {
                 <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-3 border-t border-slate-100 dark:border-slate-700">
                   <span>{formatDate(item.date)}</span>
                   <span className="inline-flex items-center gap-1">
-                    <Newspaper size={12} /> News
+                    <Newspaper size={12} /> Yangilik
                   </span>
                 </div>
               </Link>

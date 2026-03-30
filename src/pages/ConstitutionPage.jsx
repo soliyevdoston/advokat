@@ -1,14 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, BookOpen, ChevronRight, ArrowLeft, Hash, Layers, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, BookOpen, ChevronRight, ArrowLeft, Hash, Layers, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { buildApiUrl } from '../config/appConfig';
+import { constitutionData } from '../data/constitution';
+import { fetchOpenLegalDatasets } from '../utils/openLegalData';
+
 const MotionH1 = motion.h1;
 const MotionDiv = motion.div;
 const TOKEN_KEY = 'advokat_auth_token';
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
+const API_CONSTITUTION_PATH = '/api/constitution';
+const OFFICIAL_CONSTITUTION_PDF_URL = 'https://constitution.uz/en/pages/constitution';
 
 const toNumber = (value) => {
   const n = Number(value);
@@ -27,6 +32,43 @@ const normalizeArticle = (raw = {}, fallbackSectionId = null) => ({
   chapter: raw.chapter || raw.section_name || raw.title || "Bo'lim",
   content: raw.content || raw.text || raw.body || raw.article || '',
 });
+
+const cleanClauseText = (value) => (
+  String(value || '')
+    .replace(/<span[^>]*>.*?<\/span>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+);
+
+const parseModdaNumber = (value) => {
+  const match = String(value || '').match(/(\d+)\s*-\s*modda/i);
+  return match ? Number(match[1]) : 0;
+};
+
+const mapNumberToSectionId = (number) => {
+  if (number >= 154) return 6;
+  if (number >= 109) return 5;
+  if (number >= 104) return 4;
+  if (number >= 56) return 3;
+  if (number >= 19) return 2;
+  return 1;
+};
+
+const parseConstitutionApiArticles = (payload) => {
+  const rows = toArray(payload?.clauses);
+  return rows.map((item, idx) => {
+    const number = parseModdaNumber(item?.modda) || idx + 1;
+    const sectionId = mapNumberToSectionId(number);
+    return normalizeArticle({
+      id: `clause_${number}`,
+      number,
+      sectionId,
+      chapter: FALLBACK_SECTIONS.find((section) => Number(section.id) === sectionId)?.title || 'Konstitutsiya',
+      content: cleanClauseText(item?.text),
+    });
+  });
+};
 
 const parseSections = (data) => {
   const sections = toArray(data).length ? data : (data.sections || data.data || data.items || []);
@@ -70,6 +112,64 @@ async function fetchJson(url) {
   return data;
 }
 
+const FALLBACK_SECTIONS = parseSections(constitutionData.sections || []);
+const FALLBACK_ARTICLES = parseArticles(constitutionData.articles || [], constitutionData.sections || []);
+
+const LEGAL_FILTERS = [
+  { id: 'all', label: 'Barchasi' },
+  { id: 'constitution', label: 'Konstitutsiya' },
+  { id: 'decisions', label: 'Qarorlar' },
+  { id: 'legal_news', label: 'Huquqiy xabarlar' },
+  { id: 'international', label: 'Xalqaro huquq' },
+  { id: 'general', label: 'Boshqa huquqiy' },
+];
+
+const legalFocusLabel = (focus) => {
+  if (focus === 'constitution') return 'Konstitutsiya';
+  if (focus === 'decisions') return 'Qarorlar';
+  if (focus === 'legal_news') return 'Huquqiy xabar';
+  if (focus === 'international') return 'Xalqaro huquq';
+  return 'Huquqiy ochiq data';
+};
+
+function SidebarSkeleton() {
+  return (
+    <div className="space-y-2">
+      {[1, 2, 3, 4, 5, 6].map((item) => (
+        <div key={`section_skeleton_${item}`} className="h-11 rounded-lg bg-slate-100 animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+function ArticlesSkeleton() {
+  return (
+    <div className="space-y-10 animate-pulse">
+      {[1, 2, 3].map((block) => (
+        <div key={`article_skeleton_${block}`} className="space-y-4">
+          <div className="h-6 w-2/5 bg-slate-200 rounded-lg" />
+          <div className="h-4 w-full bg-slate-100 rounded-lg" />
+          <div className="h-4 w-11/12 bg-slate-100 rounded-lg" />
+          <div className="h-4 w-10/12 bg-slate-100 rounded-lg" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LegalResourcesSkeleton() {
+  return (
+    <div className="space-y-3 animate-pulse">
+      {[1, 2, 3].map((item) => (
+        <div key={`legal_skeleton_${item}`} className="rounded-xl border border-slate-100 p-3 space-y-2">
+          <div className="h-3.5 w-11/12 bg-slate-100 rounded-md" />
+          <div className="h-3.5 w-4/6 bg-slate-100 rounded-md" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const ConstitutionPage = () => {
   const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,28 +181,44 @@ const ConstitutionPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [legalResources, setLegalResources] = useState([]);
+  const [legalLoading, setLegalLoading] = useState(true);
+  const [legalError, setLegalError] = useState('');
+  const [resourceFilter, setResourceFilter] = useState('all');
+
   const loadConstitution = async () => {
     setLoading(true);
     setError('');
+    setLegalLoading(true);
+    setLegalError('');
 
-    try {
-      const [sectionsData, articlesData] = await Promise.all([
-        fetchJson(buildApiUrl('/constitution/sections')),
-        fetchJson(buildApiUrl('/constitution')),
-      ]);
+    const [constitutionResult, legalResult] = await Promise.allSettled([
+      fetchJson(buildApiUrl(API_CONSTITUTION_PATH)),
+      fetchOpenLegalDatasets({ limit: 12 }),
+    ]);
 
-      const mappedSections = parseSections(sectionsData);
-      const mappedArticles = parseArticles(articlesData, sectionsData);
-
-      setSections(mappedSections);
-      setArticles(mappedArticles);
-    } catch (err) {
-      setError(err.message || 'Konstitutsiya ma’lumotlarini yuklab bo‘lmadi');
-      setSections([]);
-      setArticles([]);
-    } finally {
-      setLoading(false);
+    if (constitutionResult.status === 'fulfilled') {
+      const apiArticles = parseConstitutionApiArticles(constitutionResult.value);
+      setSections(FALLBACK_SECTIONS);
+      setArticles(apiArticles.length ? apiArticles : FALLBACK_ARTICLES);
+      setError('');
+    } else {
+      const message = constitutionResult.reason?.message || 'Konstitutsiya API ma’lumotlarini yuklab bo‘lmadi';
+      setError(`${message}. Mahalliy nusxa ko'rsatildi.`);
+      setSections(FALLBACK_SECTIONS);
+      setArticles(FALLBACK_ARTICLES);
     }
+
+    if (legalResult.status === 'fulfilled') {
+      setLegalResources(legalResult.value);
+      setLegalError('');
+    } else {
+      setLegalResources([]);
+      setLegalError("Ochiq huquqiy datasetlarni olib bo'lmadi.");
+    }
+
+    setLoading(false);
+    setLegalLoading(false);
   };
 
   useEffect(() => {
@@ -121,6 +237,11 @@ const ConstitutionPage = () => {
       return matchesQuery && matchesNumber && matchesSection;
     });
   }, [articles, searchQuery, articleNumber, selectedSection]);
+
+  const filteredLegalResources = useMemo(() => {
+    if (resourceFilter === 'all') return legalResources;
+    return legalResources.filter((item) => item.focus === resourceFilter);
+  }, [legalResources, resourceFilter]);
 
   const scrollToSection = (sectionId) => {
     setSelectedSection(String(sectionId));
@@ -231,24 +352,79 @@ const ConstitutionPage = () => {
                 <BookOpen className="w-5 h-5 text-blue-600" />
                 Bo'limlar
               </h3>
-              <div className="space-y-2">
-                <button
-                  onClick={() => setSelectedSection('all')}
-                  className={`w-full text-left p-3 rounded-lg transition-colors text-sm font-medium flex items-center justify-between group ${selectedSection === 'all' ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-600 hover:text-blue-600'}`}
-                >
-                  <span>Barcha bo'limlar</span>
-                </button>
 
-                {sections.map((section) => (
+              {loading ? (
+                <SidebarSkeleton />
+              ) : (
+                <div className="space-y-2">
                   <button
-                    key={section.id}
-                    onClick={() => scrollToSection(section.id)}
-                    className={`w-full text-left p-3 rounded-lg transition-colors text-sm font-medium flex items-center justify-between group ${selectedSection === String(section.id) ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-600 hover:text-blue-600'}`}
+                    onClick={() => setSelectedSection('all')}
+                    className={`w-full text-left p-3 rounded-lg transition-colors text-sm font-medium flex items-center justify-between group ${selectedSection === 'all' ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-600 hover:text-blue-600'}`}
                   >
-                    <span className="line-clamp-2">{section.title}</span>
-                    <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                    <span>Barcha bo'limlar</span>
                   </button>
-                ))}
+
+                  {sections.map((section) => (
+                    <button
+                      key={section.id}
+                      onClick={() => scrollToSection(section.id)}
+                      className={`w-full text-left p-3 rounded-lg transition-colors text-sm font-medium flex items-center justify-between group ${selectedSection === String(section.id) ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-600 hover:text-blue-600'}`}
+                    >
+                      <span className="line-clamp-2">{section.title}</span>
+                      <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-8 border-t border-slate-100 pt-6">
+                <h4 className="text-sm font-bold text-slate-900">Ochiq huquqiy datasetlar</h4>
+                <p className="text-xs text-slate-500 mt-1">data.egov.uz + GDELT ochiq API manbalari</p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {LEGAL_FILTERS.map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setResourceFilter(filter.id)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                        resourceFilter === filter.id
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {legalLoading ? (
+                    <LegalResourcesSkeleton />
+                  ) : legalError ? (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      {legalError}
+                    </p>
+                  ) : filteredLegalResources.length === 0 ? (
+                    <p className="text-xs text-slate-500">Tanlangan tur bo'yicha ochiq dataset topilmadi.</p>
+                  ) : (
+                    filteredLegalResources.slice(0, 6).map((item) => (
+                      <a
+                        key={item.id}
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-xl border border-slate-100 p-3 hover:border-blue-200 hover:bg-blue-50/40 transition-colors"
+                      >
+                        <p className="text-xs font-semibold text-slate-800 line-clamp-2">{item.title}</p>
+                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">{item.organization}</p>
+                        <p className="text-[11px] text-blue-700 mt-1 inline-flex items-center gap-1">
+                          {legalFocusLabel(item.focus)} <ExternalLink size={11} />
+                        </p>
+                      </a>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -257,9 +433,7 @@ const ConstitutionPage = () => {
             <div className="bg-white p-8 md:p-12 rounded-2xl shadow-sm border border-slate-100 min-h-[600px]">
               <div className="prose prose-lg max-w-none text-slate-700">
                 {loading ? (
-                  <div className="flex items-center justify-center py-20 text-slate-500">
-                    <Loader2 size={24} className="animate-spin mr-2" /> Yuklanmoqda...
-                  </div>
+                  <ArticlesSkeleton />
                 ) : (
                   <AnimatePresence mode="wait">
                     {filteredArticles.length > 0 ? (
@@ -319,13 +493,13 @@ const ConstitutionPage = () => {
                     "Konstitutsiya — davlatni davlat, millatni millat sifatida dunyoga tanitadigan Qomusnomadir."
                   </blockquote>
                   <a
-                    href={buildApiUrl('/constitution/pdf')}
+                    href={OFFICIAL_CONSTITUTION_PDF_URL}
                     target="_blank"
                     rel="noreferrer"
                     className="px-10 py-4 bg-[var(--color-surface-900)] text-white rounded-2xl hover:bg-[#153e5a] transition-all font-bold shadow-lg flex items-center gap-3 active:scale-95"
                   >
                     <BookOpen className="w-6 h-6" />
-                    To'liq matnni yuklab olish (PDF)
+                    To'liq matn (rasmiy manba)
                   </a>
                 </div>
               </div>

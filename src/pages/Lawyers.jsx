@@ -6,6 +6,8 @@ import LawyerFilter from '../components/lawyers/LawyerFilter';
 import LawyerModal from '../components/lawyers/LawyerModal';
 import { Link } from 'react-router-dom';
 import { buildApiUrl } from '../config/appConfig';
+import { readLocalLawyers } from '../utils/localLawyers';
+import { lawyers as seedLawyers } from '../data/lawyers';
 const MotionDiv = motion.div;
 
 const LAWYER_ENDPOINTS = ['/lawyers', '/api/lawyers'];
@@ -148,14 +150,24 @@ const Lawyers = () => {
   const loadLawyers = useCallback(async (signal) => {
     setIsLoading(true);
     setApiError(null);
+    const localRows = readLocalLawyers().map(normalizeLawyer);
 
     try {
       const list = await fetchLawyersAny(signal);
-      setLawyers(list);
+      const merged = [...list];
+      localRows.forEach((item) => {
+        const exists = merged.some(
+          (row) => String(row.id) === String(item.id)
+            || (row.email && item.email && String(row.email).toLowerCase() === String(item.email).toLowerCase())
+        );
+        if (!exists) merged.push(item);
+      });
+      setLawyers(merged);
     } catch (err) {
       if (err?.name === 'AbortError') return;
       setApiError(err.message || "Advokatlar ro'yxatini olishda xatolik yuz berdi");
-      setLawyers([]);
+      const fallback = localRows.length ? localRows : seedLawyers.map(normalizeLawyer);
+      setLawyers(fallback);
     } finally {
       setIsLoading(false);
     }
@@ -208,6 +220,16 @@ const Lawyers = () => {
     });
   }, [filters, lawyers, t]);
 
+  const topRatedCount = useMemo(
+    () => lawyers.filter((lawyer) => Number(lawyer.rating || 0) >= 4.8).length,
+    [lawyers]
+  );
+
+  const contactReadyCount = useMemo(
+    () => lawyers.filter((lawyer) => lawyer.phone || lawyer.telegram || lawyer.email).length,
+    [lawyers]
+  );
+
   const shortlistedLawyers = useMemo(() => {
     const index = new Map(lawyers.map((item) => [String(item.id), item]));
     return shortlistIds.map((id) => index.get(String(id))).filter(Boolean);
@@ -247,7 +269,7 @@ const Lawyers = () => {
         />
       )}
 
-      <div className="container mx-auto px-4">
+      <div className="section-wrap">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-serif font-bold text-slate-900 dark:text-white mb-4">
             {t('lawyers_page.title')}
@@ -255,6 +277,12 @@ const Lawyers = () => {
           <p className="text-slate-600 dark:text-slate-300 max-w-2xl mx-auto text-lg">
             {t('lawyers_page.subtitle')}
           </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-4 mb-6">
+          <SummaryCard label="Ro‘yxatdagi advokatlar" value={lawyers.length} />
+          <SummaryCard label="Yuqori reytingli mutaxassislar" value={topRatedCount} />
+          <SummaryCard label="Aloqaga tayyor profillar" value={contactReadyCount} />
         </div>
 
         {apiError && !isLoading && (
@@ -384,7 +412,7 @@ const Lawyers = () => {
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.2 }}
                       key={lawyer.id}
-                      className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 hover:shadow-xl hover:border-blue-100 dark:hover:border-blue-700 transition-all group cursor-pointer"
+                      className="surface-card rounded-2xl p-6 group cursor-pointer"
                       onClick={() => setSelectedLawyer(lawyer)}
                     >
                       <div className="flex gap-4 md:gap-6">
@@ -515,3 +543,12 @@ const Lawyers = () => {
 };
 
 export default Lawyers;
+
+function SummaryCard({ label, value }) {
+  return (
+    <div className="surface-card rounded-2xl p-4">
+      <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{value}</p>
+    </div>
+  );
+}

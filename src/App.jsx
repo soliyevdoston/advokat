@@ -8,8 +8,8 @@ import PrivateRoute from './components/utils/PrivateRoute';
 import Home from './pages/Home';
 import Lawyers from './pages/Lawyers';
 import NewsPage from './pages/News';
-import About from './pages/About';
 import Contact from './pages/Contact';
+import About from './pages/About';
 import ChatPage from './pages/Chat';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
@@ -52,8 +52,8 @@ function AppContent() {
           <Route path="/lawyers" element={<Lawyers />} />
           <Route path="/news" element={<NewsPage />} />
           <Route path="/news/:id" element={<NewsPage />} />
-          <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/about" element={<About />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/constitution" element={<ConstitutionPage />} />

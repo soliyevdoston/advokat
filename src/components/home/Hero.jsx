@@ -1,81 +1,135 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight, Search } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowRight, Clock3, FileCheck2, Scale, ShieldCheck } from 'lucide-react';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
-const MotionDiv = motion.div;
+import { loadPlatformStats } from '../../utils/platformStats';
+
+const FEATURE_CHIPS = [
+  { icon: Clock3, text: 'Tez triage' },
+  { icon: FileCheck2, text: 'Ariza oqimi' },
+  { icon: ShieldCheck, text: 'Maxfiy muloqot' },
+];
 
 export default function Hero() {
   const { t } = useLanguage();
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const run = async () => {
+      setStatsLoading(true);
+      const payload = await loadPlatformStats();
+      if (!active) return;
+      setStats(payload);
+      setStatsLoading(false);
+    };
+    run();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const kpi = [
+    { label: 'Faol advokatlar', value: stats?.totalLawyers ? `${stats.totalLawyers}+` : '0' },
+    { label: 'Ro‘yxatdan o‘tgan foydalanuvchi', value: stats?.totalUsers ? `${stats.totalUsers}+` : '0' },
+    { label: 'Yakunlangan ishlar', value: stats?.resolvedCases ? `${stats.resolvedCases}+` : '0' },
+  ];
 
   return (
-    <section className="relative min-h-screen w-full flex items-center justify-center overflow-hidden pt-32 pb-16">
-      {/* Background Image with Overlay */}
-      <div className="absolute inset-0 z-0">
-        <img 
-          src="https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=2000" 
-          alt="Modern Law Office" 
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-slate-950/70" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent opacity-80" />
-      </div>
+    <section className="relative overflow-hidden min-h-screen pt-28 md:pt-32 pb-10 md:pb-14 flex items-center">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(22,77,136,0.18),transparent_50%),radial-gradient(circle_at_80%_0%,rgba(212,169,102,0.25),transparent_30%),linear-gradient(180deg,#f8fbff_0%,#f1f5fa_100%)] dark:bg-[radial-gradient(circle_at_20%_10%,rgba(32,78,131,0.35),transparent_55%),radial-gradient(circle_at_80%_0%,rgba(212,169,102,0.22),transparent_36%),linear-gradient(180deg,#0f172a_0%,#111f35_100%)]" />
+      <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(100,116,139,0.15)_1px,transparent_1px),linear-gradient(90deg,rgba(100,116,139,0.15)_1px,transparent_1px)] [background-size:26px_26px]" />
 
-      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-        <MotionDiv
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-6">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+      <div className="relative section-wrap w-full">
+        <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-8 lg:gap-10 items-center">
+          <div>
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--color-primary-300)] bg-white/70 dark:bg-slate-900/60 text-[var(--color-primary)] dark:text-blue-300 text-xs font-semibold">
+              <Scale size={14} />
+              Yuridik platforma
             </span>
-            <span className="text-sm font-medium tracking-wide">{t('hero.badge')}</span>
-          </div>
-          
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif font-bold leading-tight mb-6 tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-blue-200 drop-shadow-2xl">
-            {t('hero.title')}
-          </h1>
-          
-          <p className="text-lg md:text-xl text-slate-200 mb-8 max-w-3xl mx-auto font-light leading-relaxed px-4">
-            {t('hero.subtitle')}
-          </p>
 
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-            <div className="w-full max-w-md relative">
-              <input 
-                type="text" 
-                placeholder={t('hero.cta')}
-                className="w-full px-6 py-4 rounded-xl border-0 focus:ring-2 focus:ring-[var(--color-primary)] shadow-2xl text-slate-900 placeholder:text-slate-400 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
-              />
-              <Search className="absolute right-4 top-4 text-slate-400" />
+            <h1 className="mt-5 text-4xl md:text-6xl font-serif font-bold leading-[1.05] text-slate-900 dark:text-white">
+              {t('hero.title')}
+            </h1>
+            <p className="mt-5 max-w-2xl text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
+              {t('hero.subtitle')}
+            </p>
+
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              {FEATURE_CHIPS.map((chip) => (
+                <span
+                  key={chip.text}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600 text-xs font-semibold dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                >
+                  <chip.icon size={13} />
+                  {chip.text}
+                </span>
+              ))}
             </div>
-            <Link to="/chat">
-              <Button size="lg" className="bg-white text-slate-900 hover:bg-blue-50 border-none px-10 py-5 text-lg font-bold shadow-2xl shadow-white/10 group dark:bg-blue-600 dark:text-white dark:hover:bg-blue-700">
-                {t('hero.search_btn')} <ArrowRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
+
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              <Link to="/chat/ai">
+                <Button className="px-7 h-12 text-sm">
+                  {t('hero.search_btn')}
+                  <ArrowRight size={16} className="ml-2" />
+                </Button>
+              </Link>
+              <Link to="/lawyers">
+                <Button variant="outline" className="px-7 h-12 text-sm">
+                  Advokat tanlash
+                </Button>
+              </Link>
+            </div>
           </div>
 
-          {/* Stats / Trust Indicators */}
-          <div className="mt-16 pt-8 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-8">
-            {[
-              { label: t('hero.stats.reviews'), value: "98%" },
-              { label: t('hero.stats.exp'), value: "10+" },
-              { label: t('hero.stats.lawyers'), value: "50+" },
-              { label: t('hero.stats.cases'), value: "1500+" }
-            ].map((stat, i) => (
-              <div key={i} className="text-center">
-                <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
-                <div className="text-sm text-slate-400 uppercase tracking-widest">{stat.label}</div>
-              </div>
-            ))}
+          <div className="surface-card p-5 md:p-6">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 font-semibold">
+              Tezkor yo`nalish
+            </p>
+            <h3 className="mt-2 text-2xl font-serif font-bold text-slate-900 dark:text-white">
+              Muammoni 30 soniyada tasniflang
+            </h3>
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+              Tizim masala turini aniqlaydi va kerak bo`lsa shu yo`nalishdagi advokatga bevosita o`tkazadi.
+            </p>
+
+            <div className="mt-5 space-y-2">
+              <QuickLine text="AI triage natijasi saqlanadi" />
+              <QuickLine text="Ariza avtomatik biriktiriladi" />
+              <QuickLine text="Chat va hujjat oqimi bitta joyda" />
+            </div>
+
+            <div className="mt-6 grid grid-cols-3 gap-2">
+              {kpi.map((item) => (
+                <div key={item.label} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-900/70">
+                  {statsLoading ? (
+                    <div className="space-y-1.5 animate-pulse">
+                      <div className="h-5 w-12 bg-slate-200 dark:bg-slate-700 rounded" />
+                      <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-lg font-bold text-slate-900 dark:text-white">{item.value}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">{item.label}</p>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        </MotionDiv>
+        </div>
       </div>
     </section>
+  );
+}
+
+function QuickLine({ text }) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]" />
+      <span>{text}</span>
+    </div>
   );
 }

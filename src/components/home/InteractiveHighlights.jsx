@@ -1,14 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, ArrowRight, Bot, Clock3, Scale, ShieldCheck, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { formatQuickCheckPrompt, saveQuickLegalCheck } from '../../utils/quickLegalCheck';
-
-const LIVE_METRICS = [
-  { label: 'Bugungi yangi murojaatlar', value: '42+' },
-  { label: 'O\'rtacha birinchi javob', value: '2.4 min' },
-  { label: 'Mijoz qoniqishi', value: '4.8/5' },
-];
+import { loadPlatformStats } from '../../utils/platformStats';
 
 const URGENCY_OPTIONS = [
   { value: 'low', label: 'Shoshilinch emas' },
@@ -74,8 +69,31 @@ export default function InteractiveHighlights() {
   const [urgency, setUrgency] = useState('medium');
   const [topic, setTopic] = useState('consult');
   const [style, setStyle] = useState('ai');
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const recommendation = useMemo(() => getRecommendation({ urgency, topic, style }), [urgency, topic, style]);
   const RecIcon = recommendation.icon;
+
+  useEffect(() => {
+    let active = true;
+    const run = async () => {
+      setStatsLoading(true);
+      const payload = await loadPlatformStats();
+      if (!active) return;
+      setStats(payload);
+      setStatsLoading(false);
+    };
+    run();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const liveMetrics = [
+    { label: 'Bugungi yangi murojaatlar', value: stats?.todayRequests ? `${stats.todayRequests}+` : '0' },
+    { label: 'O‘rtacha birinchi javob', value: stats?.avgFirstResponseMin ? `${stats.avgFirstResponseMin} min` : '2 min' },
+    { label: 'Mijoz qoniqishi', value: stats?.satisfaction ? `${stats.satisfaction}/5` : '4.8/5' },
+  ];
 
   const handleContinue = () => {
     const payload = {
@@ -115,10 +133,19 @@ export default function InteractiveHighlights() {
               <Activity size={13} /> Live ko'rsatkichlar
             </div>
             <div className="mt-4 space-y-3">
-              {LIVE_METRICS.map((item) => (
+              {liveMetrics.map((item) => (
                 <div key={item.label} className="rounded-2xl border border-slate-200/80 dark:border-slate-700 bg-white/80 dark:bg-slate-800 px-4 py-3">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{item.label}</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{item.value}</p>
+                  {statsLoading ? (
+                    <div className="space-y-1.5 animate-pulse">
+                      <div className="h-3 w-28 bg-slate-200 dark:bg-slate-700 rounded" />
+                      <div className="h-7 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{item.label}</p>
+                      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{item.value}</p>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
