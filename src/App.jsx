@@ -7,6 +7,7 @@ import ScrollToTop from './components/utils/ScrollToTop';
 import PrivateRoute from './components/utils/PrivateRoute';
 import Home from './pages/Home';
 import Lawyers from './pages/Lawyers';
+import ServiceDetail from './pages/ServiceDetail';
 import NewsPage from './pages/News';
 import Contact from './pages/Contact';
 import About from './pages/About';
@@ -50,6 +51,7 @@ function AppContent() {
           {/* Ochiq sahifalar */}
           <Route path="/" element={<Home />} />
           <Route path="/lawyers" element={<Lawyers />} />
+          <Route path="/services/:id" element={<ServiceDetail />} />
           <Route path="/news" element={<NewsPage />} />
           <Route path="/news/:id" element={<NewsPage />} />
           <Route path="/contact" element={<Contact />} />
