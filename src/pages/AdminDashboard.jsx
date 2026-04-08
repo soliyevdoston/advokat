@@ -132,7 +132,7 @@ const NEWS_ENDPOINTS = ['/list/news', '/list', '/list%20/news', '/list%20', '/ne
 const CONSTITUTION_SECTIONS_ENDPOINTS = ['/user/constitutsiya/sections', '/constitution/sections', '/api/constitution/sections'];
 const CONSTITUTION_ARTICLES_ENDPOINTS = ['/user/constitutsiya', '/constitution', '/api/constitution'];
 const ADMIN_APPLICATION_ENDPOINTS = ['/admin/ariza/requests', '/applications', '/api/applications', '/documents', '/api/documents', '/requests', '/api/requests'];
-const ADMIN_SUBSCRIPTION_ENDPOINTS = ['/subscriptions', '/api/subscriptions', '/users/subscriptions', '/billing/subscriptions'];
+const ADMIN_SUBSCRIPTION_ENDPOINTS = ['/subscriptions'];
 
 const readJSON = (key, fallback) => {
   try {
@@ -481,13 +481,30 @@ export default function AdminDashboard() {
       setLoading(true);
       setError('');
 
-      const [users, chats] = await Promise.all([getAllUsers(), listSupportConversations()]);
-      setUsersList(Array.isArray(users) ? users : []);
-      setConversations(Array.isArray(chats) ? chats : []);
+      const [usersRes, chatsRes] = await Promise.allSettled([
+        getAllUsers(),
+        listSupportConversations(),
+      ]);
 
-      await Promise.all([loadLawyers(), loadContentStats(), loadOpsPanels(), loadServerStatus()]);
+      if (usersRes.status === 'fulfilled') {
+        setUsersList(Array.isArray(usersRes.value) ? usersRes.value : []);
+      } else {
+        setUsersList([]);
+      }
+
+      if (chatsRes.status === 'fulfilled') {
+        setConversations(Array.isArray(chatsRes.value) ? chatsRes.value : []);
+      } else {
+        setConversations([]);
+      }
+
+      await Promise.allSettled([loadLawyers(), loadContentStats(), loadOpsPanels(), loadServerStatus()]);
       loadLawyerRequests();
       setLastSyncedAt(new Date());
+
+      if (usersRes.status === 'rejected' && chatsRes.status === 'rejected') {
+        throw new Error("Foydalanuvchi va chat ma'lumotlari olinmadi");
+      }
     } catch (err) {
       setError(safeError(err, "Ma'lumotlarni yuklashda xatolik yuz berdi"));
     } finally {
