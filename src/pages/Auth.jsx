@@ -298,10 +298,16 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const session = await verifyCode(email, code);
+      const session = await verifyCode(email, String(code || '').trim());
       navigate(resolveRedirect(session?.user?.role), { replace: true });
     } catch (err) {
-      setError(err.message || t('auth.error_code'));
+      const rawMessage = String(err?.message || '').trim();
+      const normalized = rawMessage.toLowerCase();
+      if (normalized.includes('500') || normalized.includes('internal server error')) {
+        setError("Server kodni tasdiqlashda xatolik berdi. Yangi kod yuborib qayta urinib ko'ring.");
+      } else {
+        setError(rawMessage || t('auth.error_code'));
+      }
     } finally {
       setLoading(false);
     }
