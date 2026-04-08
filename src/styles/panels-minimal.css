@@ -1,0 +1,101 @@
+.admin-panel-minimal,
+.lawyer-panel-minimal {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  color: #0f172a;
+}
+
+.admin-panel-minimal .rounded-3xl,
+.lawyer-panel-minimal .rounded-3xl {
+  border-radius: 16px !important;
+}
+
+.admin-panel-minimal .rounded-2xl,
+.lawyer-panel-minimal .rounded-2xl {
+  border-radius: 12px !important;
+}
+
+.admin-panel-minimal [class*='bg-slate-95'],
+.admin-panel-minimal [class*='bg-slate-90'],
+.admin-panel-minimal [class*='bg-slate-80'],
+.lawyer-panel-minimal [class*='bg-slate-95'],
+.lawyer-panel-minimal [class*='bg-slate-90'],
+.lawyer-panel-minimal [class*='bg-slate-80'] {
+  background-color: #ffffff !important;
+}
+
+.admin-panel-minimal [class*='border-slate-80'],
+.admin-panel-minimal [class*='border-slate-70'],
+.lawyer-panel-minimal [class*='border-slate-80'],
+.lawyer-panel-minimal [class*='border-slate-70'] {
+  border-color: #dbe4ee !important;
+}
+
+.admin-panel-minimal [class*='hover:bg-slate-80'],
+.admin-panel-minimal [class*='hover:bg-slate-90'],
+.lawyer-panel-minimal [class*='hover:bg-slate-80'],
+.lawyer-panel-minimal [class*='hover:bg-slate-90'] {
+  background-color: #f8fafc !important;
+}
+
+.admin-panel-minimal [class*='text-slate-40'],
+.admin-panel-minimal [class*='text-slate-50'],
+.lawyer-panel-minimal [class*='text-slate-40'],
+.lawyer-panel-minimal [class*='text-slate-50'] {
+  color: #64748b !important;
+}
+
+.admin-panel-minimal [class*='text-slate-30'],
+.lawyer-panel-minimal [class*='text-slate-30'] {
+  color: #334155 !important;
+}
+
+.admin-panel-minimal .admin-dashboard-shell,
+.lawyer-panel-minimal .lawyer-dashboard-shell {
+  color: #0f172a;
+}
+
+.admin-panel-minimal table thead,
+.lawyer-panel-minimal table thead {
+  background: #f8fafc !important;
+}
+
+.admin-panel-minimal table tr:hover,
+.lawyer-panel-minimal table tr:hover {
+  background: #f8fafc !important;
+}
+
+.admin-panel-minimal input,
+.admin-panel-minimal textarea,
+.admin-panel-minimal select,
+.lawyer-panel-minimal input,
+.lawyer-panel-minimal textarea,
+.lawyer-panel-minimal select {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.admin-panel-minimal .btn-primary,
+.lawyer-panel-minimal .btn-primary {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.admin-panel-minimal .surface-card,
+.lawyer-panel-minimal .surface-card {
+  background: #ffffff !important;
+  border: 1px solid #dbe4ee !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.admin-panel-minimal [class*='text-white'] {
+  color: #0f172a !important;
+}
+
+.admin-panel-minimal .bg-blue-600,
+.admin-panel-minimal .bg-\[var\(--color-primary\)\],
+.lawyer-panel-minimal .bg-blue-600,
+.lawyer-panel-minimal .bg-\[var\(--color-primary\)\] {
+  color: #ffffff !important;
+}

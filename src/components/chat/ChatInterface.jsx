@@ -8,13 +8,17 @@ import { useAuth } from '../../context/AuthContext';
 import { buildApiUrl } from '../../config/appConfig';
 import { DOCUMENT_FREE_QUOTA_KEY } from '../../utils/documentQuota';
 import { saveQuickLegalCheck } from '../../utils/quickLegalCheck';
-import { lawyers } from '../../data/lawyers';
 import { openPaymentGateway } from '../../utils/paymentGate';
 import {
   activateSubscription,
   createPendingSubscription,
   hasActiveSubscription,
 } from '../../utils/subscription';
+import {
+  buildLawyerPool,
+  pickLawyerForApplication,
+  resolveSpecializationByTopic,
+} from '../../utils/lawyerRouting';
 const MotionDiv = motion.div;
 
 // Chat turlariga mos endpoint
@@ -82,6 +86,8 @@ const confidenceTone = (value) => {
 };
 
 const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
+const LOCAL_AI_CHAT_DB_KEY = 'legallink_ai_chat_messages_v1';
+const AI_FAILURE_LIMIT = 3;
 const PRO_DEFAULT_PRICE_UZS = 149000;
 
 const SPECIALIZATION_LABELS = {
@@ -94,35 +100,41 @@ const SPECIALIZATION_LABELS = {
   family: 'Oilaviy huquq',
 };
 
-const TOPIC_TO_SPECIALIZATIONS = {
-  document: ['civil', 'business'],
-  consult: ['civil', 'family', 'labor'],
-  dispute: ['criminal', 'civil'],
-};
-
-const pickLawyerByTopic = (topic) => {
-  const key = String(topic || 'consult').toLowerCase();
-  const priorities = TOPIC_TO_SPECIALIZATIONS[key] || TOPIC_TO_SPECIALIZATIONS.consult;
-
-  const preferred = lawyers
-    .filter((lawyer) => priorities.includes(String(lawyer.specialization || '').toLowerCase()))
-    .sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
-
-  return preferred[0] || lawyers[0] || null;
+const readJSON = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
 };
 
 const readApplications = () => {
-  try {
-    const raw = localStorage.getItem(LOCAL_APPLICATIONS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  const parsed = readJSON(LOCAL_APPLICATIONS_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
 };
 
 const saveApplications = (items) => {
   localStorage.setItem(LOCAL_APPLICATIONS_KEY, JSON.stringify(items));
+};
+
+const appendAiChatDbMessage = ({ user, type, sender, text, meta = null, isError = false }) => {
+  const actorKey = String(user?.email || user?.id || 'guest').trim().toLowerCase();
+  const rows = readJSON(LOCAL_AI_CHAT_DB_KEY, []);
+  const safeRows = Array.isArray(rows) ? rows : [];
+
+  safeRows.push({
+    id: `ai_msg_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+    actorKey,
+    type: String(type || 'ai'),
+    sender: String(sender || 'bot'),
+    text: String(text || ''),
+    meta,
+    isError: Boolean(isError),
+    createdAt: new Date().toISOString(),
+  });
+
+  localStorage.setItem(LOCAL_AI_CHAT_DB_KEY, JSON.stringify(safeRows.slice(-400)));
 };
 
 export default function ChatInterface({
@@ -136,7 +148,14 @@ export default function ChatInterface({
 }) {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const { authToken, user, ensureSupportConversation, sendSupportMessage, safeError } = useAuth();
+  const {
+    authToken,
+    user,
+    ensureSupportConversation,
+    sendSupportMessage,
+    safeError,
+    isUserBlocked,
+  } = useAuth();
 
   const [messages, setMessages] = useState([
     { id: 1, text: initialMessage, sender: 'bot', timestamp: new Date() }
@@ -149,6 +168,8 @@ export default function ChatInterface({
   const [lastAssistantMeta, setLastAssistantMeta] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [freeDocumentRemaining, setFreeDocumentRemaining] = useState(true);
+  const [aiFailureCount, setAiFailureCount] = useState(0);
+  const [showApplicationSuggestion, setShowApplicationSuggestion] = useState(false);
   const messagesContainerRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
 
@@ -158,7 +179,20 @@ export default function ChatInterface({
     return 'consult';
   }, [quickCheckPayload?.topic, type]);
 
-  const recommendedLawyer = useMemo(() => pickLawyerByTopic(quickTopic), [quickTopic]);
+  const lawyerPool = useMemo(() => buildLawyerPool(), []);
+  const preferredSpecialization = useMemo(
+    () => resolveSpecializationByTopic(quickTopic),
+    [quickTopic]
+  );
+  const regionHint = useMemo(
+    () => String(quickCheckPayload?.region || user?.region || user?.city || '').trim(),
+    [quickCheckPayload?.region, user?.city, user?.region]
+  );
+  const recommendedLawyer = useMemo(() => pickLawyerForApplication({
+    region: regionHint,
+    specialization: preferredSpecialization,
+    pool: lawyerPool,
+  }), [lawyerPool, preferredSpecialization, regionHint]);
 
   const isProMode = useMemo(() => {
     return Boolean(
@@ -325,8 +359,41 @@ export default function ChatInterface({
     }
   }, [ensureSupportConversation, navigate, safeError, sendSupportMessage, user]);
 
+  const registerAiFailure = useCallback((reason = '') => {
+    if (type !== 'ai' && type !== 'document') return;
+
+    setAiFailureCount((prev) => {
+      const next = prev + 1;
+      if (next >= AI_FAILURE_LIMIT) {
+        setShowApplicationSuggestion(true);
+        setMessages((current) => {
+          const already = current.some((item) => item.systemTag === 'ai_failure_recommendation');
+          if (already) return current;
+          return [
+            ...current,
+            {
+              id: Date.now() + 11,
+              text: `AI javobi topilmadi yoki ishonchsiz bo'ldi (ketma-ket ${AI_FAILURE_LIMIT} marta). Ariza yaratib advokatga yuborishni tavsiya qilamiz.`,
+              sender: 'bot',
+              timestamp: new Date(),
+              isError: true,
+              systemTag: 'ai_failure_recommendation',
+              meta: reason ? { escalationReason: reason } : null,
+            },
+          ];
+        });
+      }
+      return next;
+    });
+  }, [type]);
+
+  const clearAiFailureState = useCallback(() => {
+    setAiFailureCount(0);
+    setShowApplicationSuggestion(false);
+  }, []);
+
   const sendApplicationToApi = useCallback(async (payload) => {
-    const endpoints = ['/applications', '/requests', '/documents', '/api/applications'];
+    const endpoints = ['/user/ariza', '/ariza', '/requests', '/applications', '/documents', '/api/applications'];
 
     for (const endpoint of endpoints) {
       try {
@@ -354,38 +421,79 @@ export default function ChatInterface({
     return null;
   }, [authToken]);
 
-  const createLawyerApplication = useCallback(async (lawyer, noteText) => {
-    if (!lawyer || !user) return null;
+  const createApplicationAndSyncChat = useCallback(async ({
+    selectedLawyer = null,
+    noteText = '',
+    source = 'ai_triage',
+  } = {}) => {
+    if (!user) {
+      throw new Error("Ariza yaratish uchun avval tizimga kiring.");
+    }
+
+    const assignedLawyer = pickLawyerForApplication({
+      preferredLawyer: selectedLawyer,
+      region: regionHint,
+      specialization: preferredSpecialization,
+      pool: lawyerPool,
+    });
 
     const payload = {
       id: `local_ai_app_${Date.now()}`,
       title: 'AI orqali yuborilgan ariza',
       subject: `${quickTopic} bo'yicha murojaat`,
       type: quickTopic,
+      content: noteText,
       description: noteText,
       text: noteText,
       status: 'new',
       createdAt: new Date().toISOString(),
       userEmail: user?.email || '',
       userId: user?.id || null,
-      assignedLawyerId: lawyer.id,
-      assignedLawyerEmail: lawyer.email || '',
-      assignedLawyerName: lawyer.name || '',
+      region: regionHint || '',
+      lawyer_id: assignedLawyer?.id || null,
+      assignedLawyerId: assignedLawyer?.id || null,
+      assignedLawyerEmail: assignedLawyer?.email || '',
+      assignedLawyerName: assignedLawyer?.name || '',
       chatApproved: false,
-      source: 'ai_triage',
+      source,
       proMode: isProMode,
       proPriceUzs,
+      aiFailureCount,
     };
 
     const remote = await sendApplicationToApi(payload);
-    const created = remote?.application || remote?.document || remote?.data || remote || payload;
+    const created = remote?.application || remote?.request || remote?.document || remote?.data || remote || payload;
     const current = readApplications();
     saveApplications([created, ...current]);
-    return created;
-  }, [isProMode, proPriceUzs, quickTopic, sendApplicationToApi, user]);
+
+    let conversation = null;
+    try {
+      conversation = await ensureSupportConversation({
+        lawyerId: assignedLawyer?.id || null,
+      });
+    } catch {
+      conversation = null;
+    }
+
+    return { created, assignedLawyer, conversation };
+  }, [
+    aiFailureCount,
+    ensureSupportConversation,
+    isProMode,
+    lawyerPool,
+    preferredSpecialization,
+    proPriceUzs,
+    quickTopic,
+    regionHint,
+    sendApplicationToApi,
+    user,
+  ]);
 
   const routeToLawyerChat = useCallback(async () => {
-    if (!recommendedLawyer) return;
+    if (!recommendedLawyer) {
+      setHandoffError('Mos advokat topilmadi');
+      return;
+    }
 
     const recentUserContext = messages
       .filter((item) => item.sender === 'user')
@@ -403,12 +511,21 @@ export default function ChatInterface({
       recentUserContext || `- ${String(initialUserPrompt || '').trim() || 'Murojaat matni yuborilmagan'}`,
     ].filter(Boolean).join('\n');
 
-    await createLawyerApplication(recommendedLawyer, summary);
+    const { assignedLawyer } = await createApplicationAndSyncChat({
+      selectedLawyer: recommendedLawyer,
+      noteText: summary,
+      source: 'ai_triage',
+    });
+
+    const targetLawyer = assignedLawyer || recommendedLawyer;
+    if (!targetLawyer?.id) {
+      throw new Error("Ariza yaratildi, lekin advokatni aniqlab bo'lmadi.");
+    }
 
     saveQuickLegalCheck({
       ...(quickCheckPayload || {}),
-      target: `/chat/lawyer/${recommendedLawyer.id}`,
-      recommendationTitle: `${recommendedLawyer.name} bilan chat`,
+      target: `/chat/lawyer/${targetLawyer.id}`,
+      recommendationTitle: `${targetLawyer.name} bilan chat`,
       prompt: summary,
       topic: quickTopic,
       isPro: isProMode,
@@ -416,9 +533,11 @@ export default function ChatInterface({
       proPriceLabel,
     });
 
-    navigate(`/chat/lawyer/${recommendedLawyer.id}`);
+    clearAiFailureState();
+    navigate(`/chat/lawyer/${targetLawyer.id}`);
   }, [
-    createLawyerApplication,
+    clearAiFailureState,
+    createApplicationAndSyncChat,
     initialUserPrompt,
     isProMode,
     messages,
@@ -433,6 +552,10 @@ export default function ChatInterface({
 
   const connectToLawyer = useCallback(async () => {
     if (!recommendedLawyer) return;
+    if (user && isUserBlocked(user)) {
+      setHandoffError("Hisob bloklangan. Admin bilan bog'laning.");
+      return;
+    }
 
     if (isProMode && !hasActiveSubscription(user)) {
       setNeedsProSubscription(true);
@@ -443,7 +566,7 @@ export default function ChatInterface({
     setNeedsProSubscription(false);
     setHandoffError('');
     await routeToLawyerChat();
-  }, [isProMode, recommendedLawyer, routeToLawyerChat, user]);
+  }, [isProMode, isUserBlocked, recommendedLawyer, routeToLawyerChat, user]);
 
   const handleProPayment = useCallback(async (gateway) => {
     if (!user) {
@@ -482,9 +605,89 @@ export default function ChatInterface({
     await routeToLawyerChat();
   }, [proPriceUzs, routeToLawyerChat, user]);
 
+  const createFallbackApplication = useCallback(async () => {
+    if (!user) {
+      setHandoffError("Ariza yuborish uchun avval tizimga kiring.");
+      navigate('/auth', { state: { isLogin: true, from: { pathname: '/chat/ai' } } });
+      return;
+    }
+
+    if (isUserBlocked(user)) {
+      setHandoffError("Hisob bloklangan. Admin bilan bog'laning.");
+      return;
+    }
+
+    setHandoffLoading(true);
+    setHandoffError('');
+
+    try {
+      const recentUserContext = messages
+        .filter((item) => item.sender === 'user')
+        .slice(-3)
+        .map((item) => `- ${item.text}`)
+        .join('\n');
+
+      const summary = [
+        "AI javobi topilmagani sababli avtomatik ariza",
+        `Mavzu: ${quickTopic}`,
+        `Hudud: ${regionHint || "ko'rsatilmagan"}`,
+        `Xatolar soni: ${aiFailureCount}`,
+        '',
+        'Mijozning so‘nggi xabarlari:',
+        recentUserContext || `- ${String(initialUserPrompt || '').trim() || 'Murojaat matni yuborilmagan'}`,
+      ].filter(Boolean).join('\n');
+
+      const { assignedLawyer } = await createApplicationAndSyncChat({
+        selectedLawyer: null,
+        noteText: summary,
+        source: 'ai_fallback',
+      });
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 19,
+          text: assignedLawyer
+            ? `Ariza yaratildi va ${assignedLawyer.name} ga biriktirildi.`
+            : "Ariza yaratildi va umumiy navbatga yuborildi.",
+          sender: 'bot',
+          timestamp: new Date(),
+        },
+      ]);
+
+      clearAiFailureState();
+
+      if (assignedLawyer?.id) {
+        navigate(`/chat/lawyer/${assignedLawyer.id}`);
+      } else {
+        navigate('/chat/support');
+      }
+    } catch (err) {
+      setHandoffError(safeError(err, 'Ariza yaratishda xatolik yuz berdi'));
+    } finally {
+      setHandoffLoading(false);
+    }
+  }, [
+    aiFailureCount,
+    clearAiFailureState,
+    createApplicationAndSyncChat,
+    initialUserPrompt,
+    isUserBlocked,
+    messages,
+    navigate,
+    quickTopic,
+    regionHint,
+    safeError,
+    user,
+  ]);
+
   const sendMessage = useCallback(async (rawText) => {
     const text = String(rawText || '').trim();
     if (!text) return;
+    if (user && isUserBlocked(user)) {
+      setHandoffError("Hisob bloklangan. Xabar yuborish mumkin emas.");
+      return;
+    }
     if (type === 'document' && !freeDocumentRemaining) {
       setHandoffError('Tekin limit tugadi. Davom ettirish uchun mutaxassis bilan bog\'laning yoki obuna faollashtiring.');
       setMessages((prev) => [
@@ -502,6 +705,14 @@ export default function ChatInterface({
 
     const userMsg = { id: Date.now(), text, sender: 'user', timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
+    if (type === 'ai' || type === 'document') {
+      appendAiChatDbMessage({
+        user,
+        type,
+        sender: 'user',
+        text,
+      });
+    }
     setStickToBottom(true);
     setInputValue('');
     setIsLoading(true);
@@ -509,41 +720,83 @@ export default function ChatInterface({
 
     try {
       const result = await fetchBotResponse(text);
+      const unresolved = !String(result?.text || '').trim() || /javob olinmadi/i.test(String(result?.text || ''));
+      const replyText = unresolved
+        ? "Kechirasiz, aniq javob topilmadi. Savolni qayta aniqlashtiring yoki ariza yaratib advokatga yuboring."
+        : result.text;
       const botMsg = {
         id: Date.now() + 1,
-        text: result.text,
+        text: replyText,
         sender: 'bot',
         timestamp: new Date(),
         meta: result.meta,
+        isError: unresolved,
       };
       setMessages(prev => [...prev, botMsg]);
       setLastAssistantMeta(result.meta);
+      if (type === 'ai' || type === 'document') {
+        appendAiChatDbMessage({
+          user,
+          type,
+          sender: 'assistant',
+          text: replyText,
+          meta: result.meta,
+          isError: unresolved,
+        });
+      }
+      if (unresolved) {
+        registerAiFailure('AI javobi topilmadi');
+      } else {
+        clearAiFailureState();
+      }
       if (type === 'document') {
         markFreeDocumentUsed();
       }
 
-      if ((type === 'ai' || type === 'document') && result.handoffToAdmin) {
+      if (!unresolved && (type === 'ai' || type === 'document') && result.handoffToAdmin) {
         await handoffToAdmin({
-          firstMessage: `Mijoz savoli: ${text}\n\nAI javobi: ${result.text}${result.meta?.escalationReason ? `\n\nO'tkazish sababi: ${result.meta.escalationReason}` : ''}`,
+          firstMessage: `Mijoz savoli: ${text}\n\nAI javobi: ${replyText}${result.meta?.escalationReason ? `\n\nO'tkazish sababi: ${result.meta.escalationReason}` : ''}`,
         });
       }
     } catch (err) {
       console.error('Chat xatosi:', err.message);
+      registerAiFailure(err?.message || 'Server xatosi');
+      const fallbackText = "Javobni olishda xatolik yuz berdi. Iltimos qayta urinib ko'ring.";
       // Xato xabarini chat ichiga qo'shamiz
       setMessages(prev => [
         ...prev,
         {
           id: Date.now() + 2,
-          text: `⚠️ ${err.message}`,
+          text: fallbackText,
           sender: 'bot',
           timestamp: new Date(),
           isError: true,
         },
       ]);
+      if (type === 'ai' || type === 'document') {
+        appendAiChatDbMessage({
+          user,
+          type,
+          sender: 'assistant',
+          text: fallbackText,
+          isError: true,
+          meta: { reason: err?.message || 'server_error' },
+        });
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [fetchBotResponse, freeDocumentRemaining, handoffToAdmin, markFreeDocumentUsed, type]);
+  }, [
+    clearAiFailureState,
+    fetchBotResponse,
+    freeDocumentRemaining,
+    handoffToAdmin,
+    isUserBlocked,
+    markFreeDocumentUsed,
+    registerAiFailure,
+    type,
+    user,
+  ]);
 
   const handleSend = async () => {
     if (isLoading) return;
@@ -874,6 +1127,44 @@ export default function ChatInterface({
               >
                 {handoffLoading ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
                 Mutaxassisga ulash
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={handoffLoading || isLoading}
+                onClick={() => {
+                  void createFallbackApplication();
+                }}
+                className="text-xs py-2 h-auto"
+              >
+                Ariza yaratish
+              </Button>
+            </div>
+          )}
+          {(type === 'ai' || type === 'document') && aiFailureCount > 0 && (
+            <div className="mt-2">
+              <span className={`text-xs px-2.5 py-1 rounded-lg border ${
+                aiFailureCount >= AI_FAILURE_LIMIT
+                  ? 'border-rose-200 text-rose-700 bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:bg-rose-900/20'
+                  : 'border-amber-200 text-amber-700 bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:bg-amber-900/20'
+              }`}>
+                AI xatoliklari: {aiFailureCount}/{AI_FAILURE_LIMIT}
+              </span>
+            </div>
+          )}
+          {(type === 'ai' || type === 'document') && showApplicationSuggestion && (
+            <div className="mt-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/80 dark:bg-rose-900/20 p-3">
+              <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">
+                AI javobi yetarli emas. Ariza yuborish tavsiya etiladi.
+              </p>
+              <Button
+                type="button"
+                onClick={() => {
+                  void createFallbackApplication();
+                }}
+                className="mt-2 text-xs py-2 h-auto"
+              >
+                Default advokatga ariza yuborish
               </Button>
             </div>
           )}

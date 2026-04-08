@@ -16,6 +16,10 @@ const GOOGLE_AUTH_ENDPOINTS = [
   '/auth/oauth/google',
   '/google-auth',
 ];
+const DEMO_ADMIN_EMAIL = 'admin@legallink.uz';
+const DEMO_ADMIN_PASSWORD = 'admin12345';
+const DEMO_LAWYER_EMAIL = 'lawyer@legallink.uz';
+const DEMO_LAWYER_PASSWORD = 'lawyer12345';
 
 const decodeJwtPayload = (token) => {
   const raw = String(token || '').trim();
@@ -36,13 +40,15 @@ const decodeJwtPayload = (token) => {
 export default function Auth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { login, register, verifyCode, setManualToken, localFallbackEnabled } = useAuth();
+  const { login, register, verifyCode, forgotPassword, setManualToken, localFallbackEnabled } = useAuth();
   const { t } = useLanguage();
 
   const [isLogin, setIsLogin] = useState(location.state?.isLogin ?? true);
   const [step, setStep] = useState('form');
   const [registerRole, setRegisterRole] = useState('client');
   const [email, setEmail] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -190,10 +196,14 @@ export default function Auth() {
 
     setError(null);
     setLoading(true);
+    const emailVal = String(loginEmail || '').trim();
+    const passwordVal = String(loginPassword || '').trim();
 
-    const form = new FormData(event.target);
-    const emailVal = String(form.get('email') || '').trim();
-    const passwordVal = String(form.get('password') || '').trim();
+    if (!emailVal || !passwordVal) {
+      setError("Email va parolni kiriting");
+      setLoading(false);
+      return;
+    }
 
     try {
       const session = await login(emailVal, passwordVal);
@@ -306,6 +316,50 @@ export default function Auth() {
     setRegisterRole('client');
   };
 
+  const fillLawyerDemoCredentials = () => {
+    setIsLogin(true);
+    setStep('form');
+    setError(null);
+    setNotice("Advokat demo login ma'lumotlari formaga qo'yildi.");
+    setLoginEmail(DEMO_LAWYER_EMAIL);
+    setLoginPassword(DEMO_LAWYER_PASSWORD);
+  };
+
+  const fillAdminDemoCredentials = () => {
+    setIsLogin(true);
+    setStep('form');
+    setError(null);
+    setNotice("Admin demo login ma'lumotlari formaga qo'yildi.");
+    setLoginEmail(DEMO_ADMIN_EMAIL);
+    setLoginPassword(DEMO_ADMIN_PASSWORD);
+  };
+
+  const handleForgotPassword = async (event) => {
+    event.preventDefault();
+    if (loading) return;
+
+    const fallbackPrompt = "Parolni tiklash uchun email manzilini kiriting:";
+    const targetEmail = String(loginEmail || window.prompt(fallbackPrompt) || '').trim().toLowerCase();
+
+    if (!targetEmail) {
+      setError('Parolni tiklash uchun email kiriting');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setNotice('');
+
+    try {
+      await forgotPassword(targetEmail);
+      setNotice("Parolni tiklash ko'rsatmasi emailingizga yuborildi.");
+    } catch (err) {
+      setError(err?.message || 'Parolni tiklash so‘rovida xatolik yuz berdi');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen pt-24 pb-12 flex items-center justify-center bg-slate-50 dark:bg-slate-900 transition-colors duration-300 px-4">
       <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-700">
@@ -354,13 +408,45 @@ export default function Auth() {
 
           {isLogin && (
             <form className="space-y-5" onSubmit={handleLogin}>
-              <EmailField t={t} />
-              <PasswordField t={t} autoComplete="current-password" />
+              <EmailField
+                t={t}
+                value={loginEmail}
+                onChange={(event) => setLoginEmail(event.target.value)}
+              />
+              <PasswordField
+                t={t}
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+              />
 
               <div className="flex justify-end">
-                <a href="#" className="text-sm font-medium text-[var(--color-primary)] dark:text-blue-400 hover:underline">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-sm font-medium text-[var(--color-primary)] dark:text-blue-400 hover:underline"
+                >
                   {t('auth.forgot')}
-                </a>
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={fillAdminDemoCredentials}
+                  className="w-full text-left rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/40 px-4 py-3 text-xs text-slate-600 dark:text-slate-300 hover:border-[var(--color-primary)] transition-colors"
+                >
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">Admin kirishi:</span>{' '}
+                  {DEMO_ADMIN_EMAIL} / {DEMO_ADMIN_PASSWORD}
+                </button>
+                <button
+                  type="button"
+                  onClick={fillLawyerDemoCredentials}
+                  className="w-full text-left rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/40 px-4 py-3 text-xs text-slate-600 dark:text-slate-300 hover:border-[var(--color-primary)] transition-colors"
+                >
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">Advokat kirishi:</span>{' '}
+                  {DEMO_LAWYER_EMAIL} / {DEMO_LAWYER_PASSWORD}
+                </button>
               </div>
 
               <SubmitButton loading={loading} label={t('auth.login_btn')} />
@@ -549,7 +635,9 @@ export default function Auth() {
   );
 }
 
-function EmailField({ t }) {
+function EmailField({ t, value, onChange, defaultValue = '' }) {
+  const controlled = typeof value === 'string';
+
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
@@ -563,6 +651,7 @@ function EmailField({ t }) {
           required
           autoComplete="email"
           placeholder="example@mail.com"
+          {...(controlled ? { value, onChange } : { defaultValue })}
           className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[var(--color-primary)] bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-medium"
         />
       </div>
@@ -570,7 +659,9 @@ function EmailField({ t }) {
   );
 }
 
-function PasswordField({ t, autoComplete }) {
+function PasswordField({ t, autoComplete, value, onChange, defaultValue = '' }) {
+  const controlled = typeof value === 'string';
+
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
@@ -585,6 +676,7 @@ function PasswordField({ t, autoComplete }) {
           autoComplete={autoComplete}
           minLength={6}
           placeholder="••••••••"
+          {...(controlled ? { value, onChange } : { defaultValue })}
           className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-[var(--color-primary)] bg-slate-50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-medium"
         />
       </div>

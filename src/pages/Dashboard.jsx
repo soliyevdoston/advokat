@@ -15,6 +15,7 @@ import {
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
+import CaseNavigatorWizard from '../components/caseNavigator/CaseNavigatorWizard';
 import { openPaymentGateway } from '../utils/paymentGate';
 import {
   activateSubscription,
@@ -29,12 +30,20 @@ import {
   exportTemplateAsPdf,
   findTemplateById,
 } from '../utils/documentTemplates';
+import {
+  buildLawyerPool,
+  pickLawyerForApplication,
+  resolveSpecializationByTopic,
+} from '../utils/lawyerRouting';
 
 const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
 const LOCAL_SUBSCRIPTIONS_KEY = 'legallink_user_subscriptions_v1';
+const USER_APPLICATION_LIST_ENDPOINTS = ['/user/ariza/my', '/applications', '/documents', '/requests', '/api/applications'];
+const USER_APPLICATION_CREATE_ENDPOINTS = ['/user/ariza', '/applications', '/requests', '/documents', '/api/applications'];
 
 const TAB_ITEMS = [
   { key: 'overview', label: 'Umumiy' },
+  { key: 'navigator', label: 'Case Navigator' },
   { key: 'applications', label: 'Arizalar' },
   { key: 'payments', label: 'Obuna va tolov' },
   { key: 'templates', label: 'Hujjat shablonlari' },
@@ -56,7 +65,16 @@ const saveJSON = (key, value) => {
 };
 
 export default function Dashboard() {
-  const { user, authToken, apiBase, logout, listSupportConversations, safeError } = useAuth();
+  const {
+    user,
+    authToken,
+    apiBase,
+    logout,
+    listSupportConversations,
+    ensureSupportConversation,
+    safeError,
+    isUserBlocked,
+  } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('overview');
@@ -73,11 +91,13 @@ export default function Dashboard() {
   const [appForm, setAppForm] = useState({
     title: '',
     type: 'general',
+    region: '',
     description: '',
   });
   const [savingApp, setSavingApp] = useState(false);
 
   const activeTemplate = useMemo(() => findTemplateById(templateId), [templateId]);
+  const lawyerPool = useMemo(() => buildLawyerPool(), []);
 
   const templatePreview = useMemo(
     () => buildTemplatePreview(templateId, templateValues),
@@ -130,7 +150,7 @@ export default function Dashboard() {
 
     try {
       const [appsRes, subRes, chatsRes] = await Promise.allSettled([
-        apiRequest(['/applications', '/documents', '/requests', '/api/applications'], { method: 'GET' }),
+        apiRequest(USER_APPLICATION_LIST_ENDPOINTS, { method: 'GET' }),
         apiRequest(['/subscriptions', '/users/subscriptions', '/billing/subscriptions', '/api/subscriptions'], { method: 'GET' }),
         listSupportConversations(),
       ]);
@@ -139,7 +159,7 @@ export default function Dashboard() {
         const payload = appsRes.value;
         const appList = toArray(payload).length
           ? toArray(payload)
-          : (payload?.applications || payload?.documents || payload?.items || payload?.data || []);
+          : (payload?.applications || payload?.requests || payload?.documents || payload?.items || payload?.data || []);
         setApplications(appList);
         saveJSON(LOCAL_APPLICATIONS_KEY, appList);
       }
@@ -212,9 +232,13 @@ export default function Dashboard() {
     navigate('/');
   };
 
-  const handleCreateApplication = async (event) => {
+  const handleCreateApplication = useCallback(async (event) => {
     event.preventDefault();
     if (savingApp) return;
+    if (user && isUserBlocked(user)) {
+      setError("Hisob bloklangan. Ariza yuborish mumkin emas.");
+      return;
+    }
 
     if (!appForm.title.trim() || !appForm.description.trim()) {
       setError('Ariza nomi va tavsifini kiriting');
@@ -225,51 +249,90 @@ export default function Dashboard() {
     setError('');
     setNotice('');
 
+    const region = String(appForm.region || user?.region || user?.city || 'toshkent').trim();
+    const specialization = resolveSpecializationByTopic(appForm.type);
+    const defaultLawyer = pickLawyerForApplication({
+      region,
+      specialization,
+      pool: lawyerPool,
+    });
+
     const payload = {
       title: appForm.title.trim(),
       subject: appForm.title.trim(),
       type: appForm.type,
+      region,
+      content: appForm.description.trim(),
       description: appForm.description.trim(),
       text: appForm.description.trim(),
       status: 'new',
       createdAt: new Date().toISOString(),
       userEmail: user?.email || '',
       userId: user?.id || null,
-      assignedLawyerId: null,
-      assignedLawyerEmail: '',
-      assignedLawyerName: '',
+      lawyer_id: defaultLawyer?.id || null,
+      assignedLawyerId: defaultLawyer?.id || null,
+      assignedLawyerEmail: defaultLawyer?.email || '',
+      assignedLawyerName: defaultLawyer?.name || '',
       chatApproved: false,
+      source: 'dashboard_manual',
     };
 
     try {
       const data = await apiRequest(
-        ['/applications', '/requests', '/documents', '/api/applications'],
+        USER_APPLICATION_CREATE_ENDPOINTS,
         { method: 'POST', body: payload }
       );
 
-      const created = data?.application || data?.document || data?.data || data || payload;
+      const created = data?.application || data?.request || data?.document || data?.data || data || payload;
       const next = [created, ...applications];
       setApplications(next);
       saveJSON(LOCAL_APPLICATIONS_KEY, next);
-      setNotice('Ariza muvaffaqiyatli yaratildi');
-      setAppForm({ title: '', type: 'general', description: '' });
+      try {
+        await ensureSupportConversation({ lawyerId: created?.assignedLawyerId || defaultLawyer?.id || null });
+      } catch {
+        // chat auto-create fallback: ariza oqimi ishlashda davom etadi
+      }
+      setNotice(created?.assignedLawyerName
+        ? `Ariza yaratildi va ${created.assignedLawyerName} ga biriktirildi`
+        : 'Ariza muvaffaqiyatli yaratildi');
+      setAppForm({ title: '', type: 'general', region: '', description: '' });
     } catch (err) {
       const localCreated = { ...payload, id: `local_app_${Date.now()}` };
       const next = [localCreated, ...applications];
       setApplications(next);
       saveJSON(LOCAL_APPLICATIONS_KEY, next);
-      setNotice('Serverga yuborilmadi, local ariza sifatida saqlandi');
-      setAppForm({ title: '', type: 'general', description: '' });
+      try {
+        await ensureSupportConversation({ lawyerId: localCreated?.assignedLawyerId || defaultLawyer?.id || null });
+      } catch {
+        // local fallbackda chat yaratilmasa ham ariza saqlanadi
+      }
+      setNotice(localCreated?.assignedLawyerName
+        ? `Serverga yuborilmadi, local ariza ${localCreated.assignedLawyerName} ga biriktirildi`
+        : 'Serverga yuborilmadi, local ariza sifatida saqlandi');
+      setAppForm({ title: '', type: 'general', region: '', description: '' });
       setError(safeError(err, "Ariza yaratishda xatolik"));
     } finally {
       setSavingApp(false);
     }
-  };
+  }, [
+    appForm.description,
+    appForm.region,
+    appForm.title,
+    appForm.type,
+    applications,
+    apiRequest,
+    ensureSupportConversation,
+    isUserBlocked,
+    lawyerPool,
+    savingApp,
+    safeError,
+    user,
+  ]);
 
   const handlePay = (gateway) => {
     setError('');
     setNotice('');
-    const amount = 50000;
+    const amount = 149000;
     createPendingSubscription({
       user,
       gateway,
@@ -382,6 +445,7 @@ export default function Dashboard() {
               <div className="grid lg:grid-cols-4 gap-5">
                 <Card title="Tez amallar">
                   <div className="space-y-2">
+                    <Button onClick={() => setActiveTab('navigator')} className="btn-primary w-full">Case Navigator</Button>
                     <Button onClick={() => setActiveTab('applications')} className="btn-primary w-full">Ariza yaratish</Button>
                     <Button onClick={() => setActiveTab('payments')} variant="outline" className="w-full">Obuna ulash</Button>
                     <Button onClick={() => setActiveTab('templates')} variant="outline" className="w-full">Hujjat shablonlari</Button>
@@ -408,7 +472,7 @@ export default function Dashboard() {
                     <ul className="space-y-2">
                       {subscriptions.slice(0, 4).map((item, idx) => (
                         <li key={String(item.id || idx)} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                          <p className="font-medium text-slate-900 dark:text-white">{item.plan || 'PRO'} - {item.amount || 50000} UZS</p>
+                          <p className="font-medium text-slate-900 dark:text-white">{item.plan || 'PRO'} - {item.amount || 149000} UZS</p>
                           <p className="text-xs text-slate-500 mt-1">{item.gateway || item.type || '-'} / {item.status || 'pending'}</p>
                         </li>
                       ))}
@@ -425,6 +489,10 @@ export default function Dashboard() {
                   </ul>
                 </Card>
               </div>
+            )}
+
+            {activeTab === 'navigator' && (
+              <CaseNavigatorWizard mode="dashboard" />
             )}
 
             {activeTab === 'applications' && (
@@ -445,6 +513,11 @@ export default function Dashboard() {
                         <option value="court">Sud masalasi</option>
                       </select>
                     </label>
+                    <Field
+                      label="Hudud / viloyat (default advokat uchun)"
+                      value={appForm.region}
+                      onChange={(v) => setAppForm((p) => ({ ...p, region: v }))}
+                    />
                     <label className="block space-y-1">
                       <span className="text-xs text-slate-500">Tavsif</span>
                       <textarea
@@ -491,7 +564,7 @@ export default function Dashboard() {
               <div className="grid lg:grid-cols-3 gap-5">
                 <Card title="PRO obuna">
                   <p className="text-slate-600 dark:text-slate-300 text-sm mb-4">
-                    50 000 UZS / oy. Click yoki Payme orqali tolov qiling.
+                    149 000 UZS / oy. Click yoki Payme orqali tolov qiling.
                   </p>
                   <p className={`text-xs mb-3 inline-flex px-2 py-1 rounded-lg ${
                     isProActive
@@ -536,7 +609,7 @@ export default function Dashboard() {
                     <div className="space-y-2 max-h-[420px] overflow-auto pr-1">
                       {subscriptions.map((item, idx) => (
                         <div key={String(item.id || idx)} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                          <p className="font-medium text-slate-900 dark:text-white">{item.plan || 'PRO'} - {item.amount || 50000} UZS</p>
+                          <p className="font-medium text-slate-900 dark:text-white">{item.plan || 'PRO'} - {item.amount || 149000} UZS</p>
                           <p className="text-xs text-slate-500 mt-1">{item.gateway || '-'} / {item.status || 'pending'}</p>
                           <p className="text-xs text-slate-400 mt-1">{item.createdAt || item.expiresAt || '-'}</p>
                         </div>

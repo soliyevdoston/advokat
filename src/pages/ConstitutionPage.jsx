@@ -12,7 +12,8 @@ const MotionDiv = motion.div;
 const TOKEN_KEY = 'advokat_auth_token';
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
-const API_CONSTITUTION_PATH = '/api/constitution';
+const API_CONSTITUTION_ENDPOINTS = ['/user/constitutsiya', '/api/constitution', '/constitution'];
+const API_CONSTITUTION_SEARCH_ENDPOINTS = ['/user/constitutsiya/search', '/api/constitution/search'];
 const OFFICIAL_CONSTITUTION_PDF_URL = 'https://constitution.uz/en/pages/constitution';
 
 const toNumber = (value) => {
@@ -112,6 +113,33 @@ async function fetchJson(url) {
   return data;
 }
 
+async function fetchJsonAny(paths, { query = '' } = {}) {
+  let lastError = null;
+  const normalizedQuery = String(query || '').trim();
+
+  for (const path of paths) {
+    const suffix = normalizedQuery
+      ? `${path}${path.includes('?') ? '&' : '?'}query=${encodeURIComponent(normalizedQuery)}&q=${encodeURIComponent(normalizedQuery)}`
+      : path;
+
+    try {
+      return await fetchJson(buildApiUrl(suffix));
+    } catch (err) {
+      lastError = err;
+      if (err?.status === 404 || err?.status === 405) continue;
+      throw err;
+    }
+  }
+
+  throw lastError || new Error('Endpoint topilmadi');
+}
+
+const parseConstitutionPayload = (payload) => {
+  const fromClauses = parseConstitutionApiArticles(payload);
+  if (fromClauses.length) return fromClauses;
+  return parseArticles(payload, payload);
+};
+
 const FALLBACK_SECTIONS = parseSections(constitutionData.sections || []);
 const FALLBACK_ARTICLES = parseArticles(constitutionData.articles || [], constitutionData.sections || []);
 
@@ -178,6 +206,8 @@ const ConstitutionPage = () => {
 
   const [sections, setSections] = useState([]);
   const [articles, setArticles] = useState([]);
+  const [serverSearchArticles, setServerSearchArticles] = useState([]);
+  const [serverSearchLoading, setServerSearchLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -193,12 +223,12 @@ const ConstitutionPage = () => {
     setLegalError('');
 
     const [constitutionResult, legalResult] = await Promise.allSettled([
-      fetchJson(buildApiUrl(API_CONSTITUTION_PATH)),
+      fetchJsonAny(API_CONSTITUTION_ENDPOINTS),
       fetchOpenLegalDatasets({ limit: 12 }),
     ]);
 
     if (constitutionResult.status === 'fulfilled') {
-      const apiArticles = parseConstitutionApiArticles(constitutionResult.value);
+      const apiArticles = parseConstitutionPayload(constitutionResult.value);
       setSections(FALLBACK_SECTIONS);
       setArticles(apiArticles.length ? apiArticles : FALLBACK_ARTICLES);
       setError('');
@@ -225,8 +255,44 @@ const ConstitutionPage = () => {
     loadConstitution();
   }, []);
 
+  useEffect(() => {
+    const query = String(searchQuery || '').trim();
+    if (query.length < 2) {
+      setServerSearchArticles([]);
+      setServerSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setServerSearchLoading(true);
+      try {
+        const payload = await fetchJsonAny(API_CONSTITUTION_SEARCH_ENDPOINTS, { query });
+        const found = parseConstitutionPayload(payload);
+        if (!cancelled) {
+          setServerSearchArticles(found);
+        }
+      } catch {
+        if (!cancelled) {
+          setServerSearchArticles([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setServerSearchLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
   const filteredArticles = useMemo(() => {
-    return articles.filter((article) => {
+    const source = serverSearchArticles.length ? serverSearchArticles : articles;
+
+    return source.filter((article) => {
       const query = searchQuery.trim().toLowerCase();
       const text = `${article.chapter} ${article.content}`.toLowerCase();
 
@@ -236,7 +302,7 @@ const ConstitutionPage = () => {
 
       return matchesQuery && matchesNumber && matchesSection;
     });
-  }, [articles, searchQuery, articleNumber, selectedSection]);
+  }, [articles, serverSearchArticles, searchQuery, articleNumber, selectedSection]);
 
   const filteredLegalResources = useMemo(() => {
     if (resourceFilter === 'all') return legalResources;
@@ -315,6 +381,12 @@ const ConstitutionPage = () => {
                 </select>
               </div>
             </div>
+
+            {serverSearchLoading && (
+              <p className="mt-3 text-xs text-blue-100">
+                Konstitutsiya qidiruvi serverda tekshirilmoqda...
+              </p>
+            )}
 
             {(searchQuery || articleNumber || selectedSection !== 'all') && (
               <button

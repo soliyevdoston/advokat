@@ -12,6 +12,7 @@ import NewsPage from './pages/News';
 import Contact from './pages/Contact';
 import About from './pages/About';
 import ChatPage from './pages/Chat';
+import CaseNavigatorPage from './pages/CaseNavigator';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import LawyerDashboard from './pages/LawyerDashboard';
@@ -56,6 +57,7 @@ function AppContent() {
           <Route path="/news/:id" element={<NewsPage />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/about" element={<About />} />
+          <Route path="/case-navigator" element={<CaseNavigatorPage />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/constitution" element={<ConstitutionPage />} />

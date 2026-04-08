@@ -29,7 +29,7 @@ import { lawyers as seedLawyers } from '../data/lawyers';
 
 const MotionDiv = motion.div;
 
-const LAWYER_ENDPOINTS = ['/lawyers', '/api/lawyers'];
+const LAWYER_ENDPOINTS = ['/advokat/lawyers', '/advokat/list', '/advokat', '/lawyers', '/api/lawyers'];
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=800';
 const SHORTLIST_KEY = 'legallink_lawyer_shortlist_v1';
 const TOKEN_KEY = 'advokat_auth_token';

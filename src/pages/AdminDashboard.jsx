@@ -32,6 +32,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import SupportChat from '../components/chat/SupportChat';
+import '../styles/panels-minimal.css';
 import {
   readLawyerApplications,
   updateLawyerApplication,
@@ -125,6 +126,13 @@ const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
 const LOCAL_SUBSCRIPTIONS_KEY = 'legallink_user_subscriptions_v1';
 const LOCAL_USERS_KEY = 'advokat_local_users_v1';
 const ADMIN_ANNOUNCEMENTS_KEY = 'legallink_admin_announcements_v1';
+const LAWYER_ENDPOINTS = ['/advokat/lawyers', '/advokat/list', '/advokat', '/lawyers', '/api/lawyers'];
+const HEALTH_ENDPOINTS = ['/health', '/ping'];
+const NEWS_ENDPOINTS = ['/list/news', '/list', '/list%20/news', '/list%20', '/news', '/api/news'];
+const CONSTITUTION_SECTIONS_ENDPOINTS = ['/user/constitutsiya/sections', '/constitution/sections', '/api/constitution/sections'];
+const CONSTITUTION_ARTICLES_ENDPOINTS = ['/user/constitutsiya', '/constitution', '/api/constitution'];
+const ADMIN_APPLICATION_ENDPOINTS = ['/admin/ariza/requests', '/applications', '/api/applications', '/documents', '/api/documents', '/requests', '/api/requests'];
+const ADMIN_SUBSCRIPTION_ENDPOINTS = ['/subscriptions', '/api/subscriptions', '/users/subscriptions', '/billing/subscriptions'];
 
 const readJSON = (key, fallback) => {
   try {
@@ -201,6 +209,7 @@ export default function AdminDashboard() {
     listSupportConversations,
     sendSupportMessage,
     setSupportConversationApproval,
+    setUserBlocked,
     safeError,
   } = useAuth();
 
@@ -342,7 +351,7 @@ export default function AdminDashboard() {
   const loadLawyers = useCallback(async () => {
     const localRows = readLocalLawyers().map(normalizeLawyer);
     try {
-      const data = await requestAny(['/lawyers', '/api/lawyers'], { method: 'GET', auth: false });
+      const data = await requestAny(LAWYER_ENDPOINTS, { method: 'GET', auth: false });
       const raw = Array.isArray(data) ? data : (data.lawyers || data.data || data.items || []);
       const remoteRows = toArray(raw).map(normalizeLawyer);
       const merged = [...remoteRows];
@@ -361,22 +370,22 @@ export default function AdminDashboard() {
 
   const loadServerStatus = useCallback(async () => {
     try {
-      await apiFetch('/ping', { auth: false });
+      await requestAny(HEALTH_ENDPOINTS, { method: 'GET', auth: false });
       setServerOnline(true);
     } catch {
       setServerOnline(false);
     }
-  }, [apiFetch]);
+  }, [requestAny]);
 
   const loadContentStats = useCallback(async () => {
     setContentLoading(true);
 
     try {
       const [sectionsRes, articlesRes, newsRes, docsRes] = await Promise.allSettled([
-        apiFetch('/constitution/sections', { auth: false }),
-        apiFetch('/constitution', { auth: false }),
-        requestAny(['/news', '/api/news'], { method: 'GET', auth: false }),
-        requestAny(['/documents', '/api/documents'], { method: 'GET', auth: true }),
+        requestAny(CONSTITUTION_SECTIONS_ENDPOINTS, { method: 'GET', auth: false }),
+        requestAny(CONSTITUTION_ARTICLES_ENDPOINTS, { method: 'GET', auth: false }),
+        requestAny(NEWS_ENDPOINTS, { method: 'GET', auth: false }),
+        requestAny(['/xissobot/stats', '/xissobot%20/stats', '/documents', '/api/documents'], { method: 'GET', auth: true }),
       ]);
 
       const constitutionSections = sectionsRes.status === 'fulfilled'
@@ -388,18 +397,18 @@ export default function AdminDashboard() {
         : 0;
 
       const newsCount = newsRes.status === 'fulfilled'
-        ? mapCount(newsRes.value, ['news', 'items'])
+        ? mapCount(newsRes.value, ['news', 'items', 'usersToday'])
         : 0;
 
       const documentsCount = docsRes.status === 'fulfilled'
-        ? mapCount(docsRes.value, ['documents', 'items'])
+        ? mapCount(docsRes.value, ['documents', 'items', 'resolvedToday'])
         : 0;
 
       setContentStats({ constitutionSections, constitutionArticles, newsCount, documentsCount });
     } finally {
       setContentLoading(false);
     }
-  }, [apiFetch, requestAny]);
+  }, [requestAny]);
 
   const loadOpsPanels = useCallback(async () => {
     setOpsLoading(true);
@@ -407,14 +416,8 @@ export default function AdminDashboard() {
 
     try {
       const [applicationsRes, subscriptionsRes, settingsRes] = await Promise.allSettled([
-        requestAny(
-          ['/applications', '/api/applications', '/documents', '/api/documents', '/requests', '/api/requests'],
-          { method: 'GET', auth: true }
-        ),
-        requestAny(
-          ['/subscriptions', '/api/subscriptions', '/users/subscriptions', '/billing/subscriptions'],
-          { method: 'GET', auth: true }
-        ),
+        requestAny(ADMIN_APPLICATION_ENDPOINTS, { method: 'GET', auth: true }),
+        requestAny(ADMIN_SUBSCRIPTION_ENDPOINTS, { method: 'GET', auth: true }),
         requestAny(['/settings', '/api/settings', '/config', '/api/config'], { method: 'GET', auth: true }),
       ]);
 
@@ -424,7 +427,7 @@ export default function AdminDashboard() {
 
       const remoteApplications = toArray(applicationsPayload).length
         ? toArray(applicationsPayload)
-        : (applicationsPayload?.applications || applicationsPayload?.documents || applicationsPayload?.items || applicationsPayload?.data || []);
+        : (applicationsPayload?.applications || applicationsPayload?.requests || applicationsPayload?.documents || applicationsPayload?.items || applicationsPayload?.data || []);
       const remoteSubscriptions = toArray(subscriptionsPayload).length
         ? toArray(subscriptionsPayload)
         : (subscriptionsPayload?.subscriptions || subscriptionsPayload?.items || subscriptionsPayload?.data || []);
@@ -566,7 +569,7 @@ export default function AdminDashboard() {
 
     try {
       const payload = buildLawyerPayload();
-      const data = await requestAny(['/lawyers', '/api/lawyers'], {
+      const data = await requestAny(LAWYER_ENDPOINTS, {
         method: 'POST',
         body: payload,
         auth: true,
@@ -627,7 +630,7 @@ export default function AdminDashboard() {
     setLawyerSuccess('');
 
     try {
-      await requestAny([`/lawyers/${id}`, `/api/lawyers/${id}`], {
+      await requestAny([`/advokat/lawyers/${id}`, `/advokat/${id}`, `/lawyers/${id}`, `/api/lawyers/${id}`], {
         method: 'DELETE',
         auth: true,
       });
@@ -802,6 +805,37 @@ export default function AdminDashboard() {
       return email.includes(query) || role.includes(query);
     });
   }, [userSearch, usersList]);
+
+  const handleToggleUserBlock = async (targetUser) => {
+    if (!targetUser || targetUser.role === 'admin') return;
+
+    const nextBlocked = !targetUser.blocked;
+    try {
+      await setUserBlocked(
+        { email: targetUser.email, id: targetUser.id },
+        nextBlocked
+      );
+      setUsersList((prev) => prev.map((row) => {
+        if (String(row?.id || '') === String(targetUser?.id || '')) {
+          return { ...row, blocked: nextBlocked };
+        }
+        if (row?.email && targetUser?.email && String(row.email).toLowerCase() === String(targetUser.email).toLowerCase()) {
+          return { ...row, blocked: nextBlocked };
+        }
+        return row;
+      }));
+      setOpsNotice(nextBlocked
+        ? `${targetUser.email || targetUser.id} bloklandi`
+        : `${targetUser.email || targetUser.id} blokdan chiqarildi`);
+      await pushAuditLog({
+        action: nextBlocked ? 'user_blocked' : 'user_unblocked',
+        target: targetUser.email || targetUser.id || '-',
+        detail: nextBlocked ? 'Admin foydalanuvchini blokladi' : 'Admin blokni olib tashladi',
+      });
+    } catch (err) {
+      setOpsError(safeError(err, 'Foydalanuvchi holatini o‘zgartirib bo‘lmadi'));
+    }
+  };
 
   const filteredLawyers = useMemo(() => {
     const query = lawyerSearch.trim().toLowerCase();
@@ -1042,7 +1076,7 @@ export default function AdminDashboard() {
     try {
       let created = null;
       try {
-        const data = await requestAny(['/lawyers', '/api/lawyers'], {
+        const data = await requestAny(LAWYER_ENDPOINTS, {
           method: 'POST',
           body: payload,
           auth: true,
@@ -1198,7 +1232,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="admin-dashboard-shell min-h-screen bg-slate-950 text-white">
+    <div className="admin-dashboard-shell admin-panel-minimal min-h-screen bg-slate-950 text-slate-900">
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-8">
         <div className="flex flex-col lg:flex-row gap-6">
           <aside className="lg:w-72 shrink-0">
@@ -1452,7 +1486,9 @@ export default function AdminDashboard() {
                           <th className="pb-3 px-3">#</th>
                           <th className="pb-3 px-3">Email</th>
                           <th className="pb-3 px-3">Roli</th>
+                          <th className="pb-3 px-3">Holat</th>
                           <th className="pb-3 px-3">Yaratilgan</th>
+                          <th className="pb-3 px-3 text-right">Amal</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1471,8 +1507,36 @@ export default function AdminDashboard() {
                                 {usr.role || 'user'}
                               </span>
                             </td>
+                            <td className="px-3 py-3">
+                              <span className={`text-xs px-2 py-1 rounded-md font-semibold ${
+                                usr.blocked
+                                  ? 'bg-rose-900/40 text-rose-300'
+                                  : 'bg-emerald-900/40 text-emerald-300'
+                              }`}>
+                                {usr.blocked ? 'Bloklangan' : 'Aktiv'}
+                              </span>
+                            </td>
                             <td className="px-3 py-3 text-slate-400">
                               {usr.created_at ? new Date(usr.created_at).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              {usr.role === 'admin' ? (
+                                <span className="text-xs text-slate-500">—</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void handleToggleUserBlock(usr);
+                                  }}
+                                  className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border ${
+                                    usr.blocked
+                                      ? 'border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/20'
+                                      : 'border-rose-700/50 text-rose-300 hover:bg-rose-900/20'
+                                  }`}
+                                >
+                                  {usr.blocked ? 'Unblock' : 'Block'}
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -1834,7 +1898,7 @@ export default function AdminDashboard() {
                 {opsLoading ? (
                   <LoadingBox text="Arizalar yuklanmoqda..." />
                 ) : applications.length === 0 ? (
-                  <EmptyBox text="Arizalar topilmadi. Endpoint: /applications yoki /documents" dark />
+                  <EmptyBox text="Arizalar topilmadi. Endpoint: /admin/ariza/requests yoki /user/ariza/my" dark />
                 ) : (
                   <div className="overflow-x-auto rounded-2xl border border-slate-800">
                     <table className="w-full text-sm">

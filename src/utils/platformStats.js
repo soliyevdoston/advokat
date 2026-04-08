@@ -49,7 +49,7 @@ const fetchAny = async (paths) => {
       return data;
     } catch (err) {
       lastError = err;
-      if (err?.status === 404 || err?.status === 405) continue;
+      if (err?.status === 401 || err?.status === 403 || err?.status === 404 || err?.status === 405) continue;
       throw err;
     }
   }
@@ -118,15 +118,22 @@ export const loadPlatformStats = async () => {
   };
 
   try {
-    const [usersPayload, lawyersPayload, applicationsPayload] = await Promise.all([
-      fetchAny(['/users', '/users/', '/auth/users']),
-      fetchAny(['/lawyers', '/api/lawyers']),
-      fetchAny(['/applications', '/api/applications', '/documents', '/api/documents']),
+    const [usersPayload, lawyersPayload, applicationsPayload, usersStatsPayload, resolvedStatsPayload] = await Promise.all([
+      fetchAny(['/admin/user/users/count', '/user/list', '/user/users', '/users', '/users/', '/auth/users']),
+      fetchAny(['/admin/user/lawyers/count', '/advokat/lawyers', '/advokat/list', '/advokat', '/lawyers', '/api/lawyers']),
+      fetchAny(['/admin/ariza/requests', '/user/ariza/my', '/xissobot/stats', '/xissobot%20/stats', '/applications', '/api/applications', '/documents', '/api/documents']),
+      fetchAny(['/list/stats', '/list%20/stats']),
+      fetchAny(['/xissobot/stats', '/xissobot%20/stats']),
     ]);
 
     const usersRemote = extractList(usersPayload, ['users', 'items']);
     const lawyersRemote = extractList(lawyersPayload, ['lawyers', 'items']);
-    const appsRemote = extractList(applicationsPayload, ['applications', 'documents', 'items']);
+    const appsRemote = extractList(applicationsPayload, ['applications', 'documents', 'items', 'requests']);
+
+    const usersCountDirect = Number(usersPayload?.users || usersPayload?.count || usersPayload?.total || 0);
+    const lawyersCountDirect = Number(lawyersPayload?.lawyers || lawyersPayload?.count || lawyersPayload?.total || 0);
+    const usersToday = Number(usersStatsPayload?.usersToday || 0);
+    const resolvedToday = Number(resolvedStatsPayload?.resolvedToday || 0);
 
     const remoteTodayRequests = appsRemote.filter(
       (item) => toTs(item?.createdAt || item?.created_at || item?.submittedAt) >= todayStart
@@ -136,10 +143,10 @@ export const loadPlatformStats = async () => {
     ).length;
 
     return {
-      totalUsers: usersRemote.length || localStats.totalUsers,
-      totalLawyers: lawyersRemote.length || localStats.totalLawyers,
-      resolvedCases: remoteResolved || localStats.resolvedCases,
-      todayRequests: remoteTodayRequests || localStats.todayRequests,
+      totalUsers: usersCountDirect || usersRemote.length || localStats.totalUsers,
+      totalLawyers: lawyersCountDirect || lawyersRemote.length || localStats.totalLawyers,
+      resolvedCases: remoteResolved || resolvedToday || localStats.resolvedCases,
+      todayRequests: remoteTodayRequests || usersToday || localStats.todayRequests,
       avgFirstResponseMin: localStats.avgFirstResponseMin,
       satisfaction: localStats.satisfaction,
     };

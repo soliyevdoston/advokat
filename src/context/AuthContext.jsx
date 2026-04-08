@@ -12,6 +12,8 @@ const SUPPORT_CONVERSATIONS_KEY = 'advokat_support_conversations_v1';
 const SUPPORT_MESSAGES_KEY = 'advokat_support_messages_v1';
 const SUPPORT_APPROVALS_KEY = 'advokat_support_approvals_v1';
 const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
+const BLOCKED_USERS_KEY = 'legallink_blocked_users_v1';
+const FORGOT_RESET_TOKEN_KEY = 'advokat_forgot_reset_token';
 
 const readJSON = (key, fallback = null) => {
   try {
@@ -25,6 +27,42 @@ const readJSON = (key, fallback = null) => {
 const writeJSON = (key, value) => {
   localStorage.setItem(key, JSON.stringify(value));
 };
+
+const normalizeIdentity = (value) => String(value || '').trim().toLowerCase();
+
+const buildIdentityKeys = (source = {}) => {
+  const keys = [
+    source?.email,
+    source?.id,
+    source?.userId,
+    source?._id,
+    source?.username,
+  ]
+    .map(normalizeIdentity)
+    .filter(Boolean);
+
+  return Array.from(new Set(keys));
+};
+
+const readBlockedUsers = () => {
+  const raw = readJSON(BLOCKED_USERS_KEY, {});
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return raw;
+};
+
+const writeBlockedUsers = (value) => {
+  writeJSON(BLOCKED_USERS_KEY, value && typeof value === 'object' ? value : {});
+};
+
+const isIdentityBlocked = (source = {}) => {
+  const map = readBlockedUsers();
+  return buildIdentityKeys(source).some((key) => Boolean(map[key]?.blocked));
+};
+
+const applyBlockedState = (user = {}) => ({
+  ...user,
+  blocked: Boolean(user?.blocked || isIdentityBlocked(user)),
+});
 
 const normalizeUser = (rawUser = {}) => {
   const email = rawUser.email || rawUser.username || '';
@@ -43,7 +81,7 @@ const normalizeUser = (rawUser = {}) => {
 const getToken = () => localStorage.getItem(TOKEN_KEY) || null;
 const getUser = () => {
   const raw = readJSON(USER_KEY, null);
-  return raw ? normalizeUser(raw) : null;
+  return raw ? applyBlockedState(normalizeUser(raw)) : null;
 };
 
 const saveSession = (token, user) => {
@@ -135,7 +173,7 @@ const normalizeConversation = (conv = {}) => ({
     : Boolean(conv.lawyerId || conv.peerId?.toString?.().startsWith('lawyer_')),
   chatApproved: typeof conv.chatApproved === 'boolean'
     ? conv.chatApproved
-    : !Boolean(conv.lawyerId || conv.peerId?.toString?.().startsWith('lawyer_')),
+    : !(conv.lawyerId || conv.peerId?.toString?.().startsWith('lawyer_')),
   approvedBy: conv.approvedBy || null,
   approvalUpdatedAt: conv.approvalUpdatedAt || conv.approvedAt || null,
 });
@@ -145,19 +183,59 @@ const normalizeMessage = (msg = {}) => ({
   conversationId: msg.conversationId || msg.chatId || msg.roomId,
   senderId: msg.senderId || msg.userId || msg.sender?.id,
   senderRole: msg.senderRole || msg.sender?.role || 'user',
+  senderType: msg.senderType || msg.sender_type || msg.senderRole || msg.sender?.role || 'user',
   senderName: msg.senderName || msg.sender?.name || msg.sender?.email || 'Foydalanuvchi',
   text: msg.text || msg.message || msg.content || '',
   createdAt: msg.createdAt || msg.created_at || new Date().toISOString(),
 });
 
-const CHAT_ENDPOINT = '/chats';
-const LOGIN_ENDPOINTS = ['/auth/login', '/login', '/users/login'];
-const SEND_CODE_ENDPOINTS = ['/auth/send-code', '/send-code', '/users/send-code'];
-const VERIFY_CODE_ENDPOINTS = ['/auth/verify-code', '/verify-code', '/users/verify-code'];
-const REGISTER_ENDPOINTS = ['/auth/register', '/users/register'];
-const CREATE_ADMIN_ENDPOINTS = ['/users/create_admin', '/users/create-admin', '/create_admin'];
+const CHAT_LIST_ENDPOINTS = ['/user/chats', '/chats'];
+const CHAT_SEND_ENDPOINTS = ['/user/chats/send', '/chats'];
+const USER_REQUEST_ENDPOINTS = ['/user/ariza/my', '/ariza/my', '/requests/my'];
+const ADMIN_CHAT_LIST_ENDPOINTS = ['/admin/chats/chats', '/admin/chats'];
+const ADMIN_CHAT_SEND_ENDPOINTS = ['/admin/chats/chats/send', '/admin/chats/send'];
+const LAWYER_CHAT_SEND_ENDPOINTS = ['/advokat/chats/chat/send'];
+const LAWYER_REQUEST_ENDPOINTS = ['/advokat/chats/my-requests', '/advokat/ariza/my-requests'];
+const LAWYER_CHAT_BY_REQUEST_ENDPOINTS = (requestId) => [
+  `/advokat/chats/chat/${encodeURIComponent(String(requestId || '').trim())}`,
+];
+const LOGIN_ENDPOINTS = ['/user/auth/login', '/auth/login', '/login', '/users/login'];
+const SEND_CODE_ENDPOINTS = ['/user/auth/send-code', '/auth/send-code', '/send-code', '/users/send-code'];
+const VERIFY_CODE_ENDPOINTS = ['/user/auth/verify-code', '/auth/verify-code', '/verify-code', '/users/verify-code'];
+const REGISTER_ENDPOINTS = ['/user/auth/register', '/auth/register', '/users/register'];
+const LOGOUT_ENDPOINTS = ['/user/auth/logout', '/auth/logout', '/logout'];
+const FORGOT_PASSWORD_ENDPOINTS = [
+  '/user/forgot_password/forgot-password',
+  '/forgot_password/forgot-password',
+  '/auth/forgot-password',
+];
+const RESET_PASSWORD_ENDPOINTS = [
+  '/user/forgot_password/reset-password',
+  '/forgot_password/reset-password',
+  '/auth/reset-password',
+];
+const CREATE_ADMIN_ENDPOINTS = ['/admin/auth/make', '/users/create_admin', '/users/create-admin', '/create_admin'];
 const CREATE_LAWYER_ENDPOINTS = ['/users/create_lawyer', '/users/create-lawyer', '/create_lawyer'];
-const USERS_ENDPOINTS = ['/users/', '/users', '/auth/users'];
+const USERS_ENDPOINTS = ['/admin/user/users/search?q=@', '/users/', '/users', '/auth/users'];
+const DEFAULT_ADMIN_CREDENTIALS = {
+  email: 'admin@legallink.uz',
+  password: 'admin12345',
+};
+const DEFAULT_LAWYER_CREDENTIALS = {
+  email: 'lawyer@legallink.uz',
+  password: 'lawyer12345',
+};
+
+const assertUserNotBlocked = (user = {}) => {
+  const normalized = applyBlockedState(normalizeUser(user));
+  if (normalized.role === 'admin') return normalized;
+  if (normalized.blocked) {
+    const err = new Error('Hisob vaqtincha bloklangan. Admin bilan bog\'laning.');
+    err.code = 'USER_BLOCKED';
+    throw err;
+  }
+  return normalized;
+};
 
 const normalizeParty = (value) => {
   const raw = String(value ?? '').trim();
@@ -234,11 +312,14 @@ const conversationMatchesLawyer = (conversation, currentUser) => {
 const normalizeChatRow = (row = {}) => {
   const sender = normalizeParty(row.sender || row.senderId || row.senderEmail || row.sender?.email || row.sender?.id);
   const receiver = normalizeParty(row.receiver ?? row.receiverId ?? row.receiverEmail ?? row.receiver?.email ?? row.receiver?.id);
+  const senderType = row.sender_type || row.senderType || row.senderRole || row.sender?.role || null;
 
   return {
     id: row.id || row._id || `chat_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+    chatId: row.chat_id || row.chatId || row.conversationId || row.roomId || null,
     sender,
     receiver,
+    senderType,
     message: row.message || row.text || row.content || '',
     type: row.type || 'support',
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
@@ -248,6 +329,160 @@ const normalizeChatRow = (row = {}) => {
 const mapChatRows = (data) => {
   const rawList = Array.isArray(data) ? data : (data.chats || data.data || data.items || []);
   return Array.isArray(rawList) ? rawList.map(normalizeChatRow) : [];
+};
+
+const mapConversationList = (data, currentUser) => {
+  const rawList = Array.isArray(data)
+    ? data
+    : (data.conversations
+      || data.chats
+      || data.data?.conversations
+      || data.data?.chats
+      || data.items
+      || []);
+
+  if (!Array.isArray(rawList)) return [];
+
+  const currentIdentity = getCurrentIdentity(currentUser);
+  const isAdmin = currentUser?.role === 'admin';
+
+  return toSorted(rawList.map((item) => {
+    const participantsRaw = Array.isArray(item.participants) ? item.participants : [];
+    const participants = participantsRaw.map((value) => normalizeParty(value));
+    const fallbackPeer = participants.find((value) => value !== currentIdentity) || 'admin';
+    const peerId = normalizeParty(
+      item.peerId
+      || item.receiver
+      || item.clientEmail
+      || item.userEmail
+      || fallbackPeer
+    );
+
+    const clientEmail = isAdmin
+      ? (peerId.includes('@') ? peerId : (item.clientEmail || item.userEmail || ''))
+      : String(currentUser?.email || item.clientEmail || item.userEmail || '');
+
+    return normalizeConversation({
+      id: item.chat_id || item.chatId || item.id || item._id || makeConversationId(currentIdentity, peerId),
+      clientId: item.clientId || item.userId || item.user_id || clientEmail || peerId,
+      clientEmail,
+      clientName: item.clientName || item.userName || item.name || (clientEmail.includes('@') ? clientEmail.split('@')[0] : 'Mijoz'),
+      subject: item.subject || item.title || "Yuridik masala bo'yicha murojaat",
+      status: item.status || 'open',
+      lawyerId: item.lawyerId || item.lawyer_id || null,
+      createdAt: item.createdAt || item.created_at || new Date().toISOString(),
+      updatedAt: item.updatedAt || item.updated_at || item.createdAt || item.created_at || new Date().toISOString(),
+      lastMessage: item.lastMessage || item.last_message || item.preview || item.message || '',
+      peerId,
+      participantA: participants[0] || null,
+      participantB: participants[1] || null,
+    });
+  }), 'updatedAt');
+};
+
+const mapMessagesFromChatPayload = (data, conversationId) => {
+  const rawMessages = Array.isArray(data)
+    ? data
+    : (data.messages || data.data?.messages || data.items || data.data?.items || []);
+
+  if (!Array.isArray(rawMessages)) return [];
+
+  return rawMessages.map((row) => {
+    const senderType = row.sender_type || row.senderType || row.senderRole || row.sender?.role || 'user';
+    const senderId = row.senderId || row.sender_id || row.sender || row.userId || row.user_id || senderType;
+    const role = senderType === 'lawyer' ? 'lawyer' : senderType === 'admin' ? 'admin' : 'user';
+    const chatId = row.chat_id || row.chatId || row.conversationId || row.roomId || conversationId;
+
+    return normalizeMessage({
+      id: row.id || row._id,
+      conversationId: chatId,
+      senderId,
+      senderRole: role,
+      senderType: role,
+      senderName: row.senderName || row.sender_name || row.user_name || row.lawyer_name || row.sender?.name || row.sender?.email || senderId,
+      text: row.message || row.text || row.content || '',
+      createdAt: row.createdAt || row.created_at || new Date().toISOString(),
+    });
+  });
+};
+
+const mapConversationsFromRequests = (data, currentUser) => {
+  const rawList = Array.isArray(data)
+    ? data
+    : (data.requests || data.data?.requests || data.items || data.data || []);
+
+  if (!Array.isArray(rawList)) return [];
+
+  return toSorted(rawList.map((item) => {
+    const id = item.chat_id || item.chatId || item.id || item.request_id || `req_${Date.now()}`;
+    const title = item.title || item.subject || "Yuridik masala bo'yicha murojaat";
+    const preview = item.content || item.description || item.text || '';
+
+    return normalizeConversation({
+      id,
+      clientId: item.user_id || currentUser?.id || item.userId || '',
+      clientEmail: currentUser?.email || item.user_email || item.userEmail || '',
+      clientName: item.user_name || currentUser?.name || 'Mijoz',
+      subject: title,
+      status: item.status || 'open',
+      lawyerId: item.lawyer_id || item.lawyerId || null,
+      createdAt: item.created_at || item.createdAt || new Date().toISOString(),
+      updatedAt: item.updated_at || item.updatedAt || item.created_at || item.createdAt || new Date().toISOString(),
+      lastMessage: preview,
+      peerId: item.lawyer_id || item.lawyerId || null,
+      requiresApproval: false,
+      chatApproved: true,
+    });
+  }), 'updatedAt');
+};
+
+const mapAdminConversationsFromChats = (data) => {
+  const rows = Array.isArray(data)
+    ? data
+    : (data.messages || data.data?.messages || data.items || data.data || []);
+  if (!Array.isArray(rows)) return [];
+
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const key = String(row.chat_id || row.chatId || '').trim();
+    if (!key) return;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  });
+
+  return toSorted(Array.from(grouped.entries()).map(([chatId, list]) => {
+    const sorted = [...list].sort(
+      (a, b) => new Date(a.created_at || a.createdAt || 0).getTime() - new Date(b.created_at || b.createdAt || 0).getTime()
+    );
+    const first = sorted[0] || {};
+    const last = sorted[sorted.length - 1] || {};
+
+    return normalizeConversation({
+      id: chatId,
+      clientId: first.user_id || first.userId || '',
+      clientEmail: first.user_email || first.userEmail || '',
+      clientName: first.user_name || 'Mijoz',
+      subject: first.request_id ? `Request #${first.request_id}` : `Chat #${chatId}`,
+      status: 'open',
+      lawyerId: first.lawyer_id || first.lawyerId || null,
+      createdAt: first.created_at || first.createdAt || new Date().toISOString(),
+      updatedAt: last.created_at || last.createdAt || new Date().toISOString(),
+      lastMessage: last.message || '',
+      requiresApproval: false,
+      chatApproved: true,
+    });
+  }), 'updatedAt');
+};
+
+const buildChatByIdEndpoints = (conversationId) => {
+  const id = encodeURIComponent(String(conversationId || '').trim());
+  if (!id) return CHAT_LIST_ENDPOINTS;
+
+  return [
+    `/user/chats/${id}`,
+    `/chats/${id}`,
+    ...CHAT_LIST_ENDPOINTS,
+  ];
 };
 
 const buildConversationsFromChats = (rows, currentUser) => {
@@ -309,22 +544,41 @@ const buildConversationsFromChats = (rows, currentUser) => {
   return toSorted(conversations.map(applySupportApproval), 'updatedAt');
 };
 
-const seedLocalAdmin = () => {
+const seedLocalAccounts = () => {
   const users = loadLocalUsers();
-  const hasAdmin = users.some((u) => u.role === 'admin');
+  const hasAdmin = users.some(
+    (u) => u.role === 'admin' || String(u.email || '').toLowerCase() === DEFAULT_ADMIN_CREDENTIALS.email
+  );
+  const hasLawyer = users.some(
+    (u) => u.role === 'lawyer' || String(u.email || '').toLowerCase() === DEFAULT_LAWYER_CREDENTIALS.email
+  );
 
   if (!hasAdmin) {
     users.push({
       id: 'local_admin_1',
       name: 'Bosh Admin',
-      email: 'admin@legallink.uz',
-      password: 'admin12345',
+      email: DEFAULT_ADMIN_CREDENTIALS.email,
+      password: DEFAULT_ADMIN_CREDENTIALS.password,
       role: 'admin',
       created_at: new Date().toISOString(),
       source: 'local',
     });
-    saveLocalUsers(users);
   }
+
+  if (!hasLawyer) {
+    users.push({
+      id: 'local_lawyer_1',
+      name: 'Demo Advokat',
+      email: DEFAULT_LAWYER_CREDENTIALS.email,
+      password: DEFAULT_LAWYER_CREDENTIALS.password,
+      role: 'lawyer',
+      lawyerId: 'lawyer_demo_1',
+      created_at: new Date().toISOString(),
+      source: 'local',
+    });
+  }
+
+  saveLocalUsers(users);
 };
 
 const rememberUserForLocalFeatures = (user, password = null) => {
@@ -454,7 +708,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (USE_LOCAL_FALLBACK) {
-      seedLocalAdmin();
+      seedLocalAccounts();
     }
   }, []);
 
@@ -469,7 +723,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const setSession = (token, userData, password = null) => {
-    const normalized = normalizeUser(userData);
+    const normalized = assertUserNotBlocked(userData);
     saveSession(token, normalized);
     setAuthToken(token);
     setUser(normalized);
@@ -495,6 +749,7 @@ export const AuthProvider = ({ children }) => {
 
       return setSession(token, userData, password);
     } catch (err) {
+      if (err?.code === 'USER_BLOCKED') throw err;
       if (!USE_LOCAL_FALLBACK) throw err;
       const shouldUseLocal = !err.status || err.status >= 500 || [400, 401, 404].includes(err.status);
       if (!shouldUseLocal) throw err;
@@ -591,7 +846,86 @@ export const AuthProvider = ({ children }) => {
     return setSession(finalToken, userData);
   };
 
+  const forgotPassword = async (email) => {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new Error('Email kiriting');
+    }
+
+    try {
+      const data = await apiRequestAny(FORGOT_PASSWORD_ENDPOINTS, {
+        method: 'POST',
+        body: { email: normalizedEmail },
+      });
+      if (data?.token) {
+        localStorage.setItem(FORGOT_RESET_TOKEN_KEY, String(data.token));
+      }
+      return data;
+    } catch (err) {
+      if (!USE_LOCAL_FALLBACK) throw err;
+      const userExists = loadLocalUsers().some(
+        (item) => String(item?.email || '').trim().toLowerCase() === normalizedEmail
+      );
+      if (!userExists) {
+        throw new Error("Bu email bilan foydalanuvchi topilmadi");
+      }
+
+      return { success: true, fallback: true, message: 'Parolni tiklash ko‘rsatmasi yuborildi (local mode).' };
+    }
+  };
+
+  const resetPassword = async ({ email, code, password, authToken } = {}) => {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedCode = String(code || '').trim();
+    const normalizedPassword = String(password || '').trim();
+    const resetToken = String(authToken || localStorage.getItem(FORGOT_RESET_TOKEN_KEY) || '').trim();
+
+    if (!normalizedEmail) throw new Error('Email kiriting');
+    if (!normalizedCode) throw new Error('Tiklash kodi kiritilmagan');
+    if (normalizedPassword.length < 6) throw new Error('Yangi parol kamida 6 ta belgidan iborat bo‘lsin');
+    if (!resetToken) throw new Error('Tiklash tokeni topilmadi, avval forgot-password so‘rovini yuboring');
+
+    try {
+      return await apiRequestAny(RESET_PASSWORD_ENDPOINTS, {
+        method: 'POST',
+        body: {
+          email: normalizedEmail,
+          authToken: resetToken,
+          code: normalizedCode,
+          otp: normalizedCode,
+          token: resetToken,
+          password: normalizedPassword,
+          newPassword: normalizedPassword,
+        },
+      });
+    } catch (err) {
+      if (!USE_LOCAL_FALLBACK) throw err;
+
+      const users = loadLocalUsers();
+      const idx = users.findIndex((item) => String(item?.email || '').trim().toLowerCase() === normalizedEmail);
+      if (idx < 0) {
+        throw new Error("Bu email bilan foydalanuvchi topilmadi");
+      }
+
+      users[idx] = {
+        ...users[idx],
+        password: normalizedPassword,
+        updatedAt: new Date().toISOString(),
+      };
+      saveLocalUsers(users);
+
+      return { success: true, fallback: true, message: "Parol local mode'da yangilandi." };
+    }
+  };
+
   const logout = () => {
+    if (authToken) {
+      void apiRequestAny(LOGOUT_ENDPOINTS, {
+        method: 'POST',
+        token: authToken,
+      }).catch(() => {});
+    }
+
     clearSession();
     setAuthToken(null);
     setUser(null);
@@ -601,7 +935,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem(TOKEN_KEY, token);
     setAuthToken(token);
     if (userData) {
-      const normalized = normalizeUser(userData);
+      const normalized = assertUserNotBlocked(userData);
       localStorage.setItem(USER_KEY, JSON.stringify(normalized));
       setUser(normalized);
       if (USE_LOCAL_FALLBACK) {
@@ -728,14 +1062,14 @@ export const AuthProvider = ({ children }) => {
         ? data
         : data.users || data.data || data.items || [];
 
-      const users = rawList.map(normalizeUser);
+      const users = rawList.map((row) => applyBlockedState(normalizeUser(row)));
       if (USE_LOCAL_FALLBACK) {
         users.forEach((u) => rememberUserForLocalFeatures(u));
       }
       return users;
     } catch (err) {
       if (!USE_LOCAL_FALLBACK) throw err;
-      return loadLocalUsers().map((u) => normalizeUser(u));
+      return loadLocalUsers().map((u) => applyBlockedState(normalizeUser(u)));
     }
   };
 
@@ -743,10 +1077,38 @@ export const AuthProvider = ({ children }) => {
     if (!user) throw new Error('Avval tizimga kiring');
 
     try {
-      const data = await apiRequest(CHAT_ENDPOINT, {
+      if (user.role === 'admin') {
+        const data = await apiRequestAny(ADMIN_CHAT_LIST_ENDPOINTS, {
+          method: 'GET',
+          token: authToken,
+        });
+        const adminConversations = mapAdminConversationsFromChats(data);
+        return adminConversations.map(applySupportApproval);
+      } else if (user.role === 'lawyer') {
+        const data = await apiRequestAny(LAWYER_REQUEST_ENDPOINTS, {
+          method: 'GET',
+          token: authToken,
+        });
+        const lawyerConversations = mapConversationsFromRequests(data, user);
+        return lawyerConversations.map(applySupportApproval);
+      } else {
+        const data = await apiRequestAny(USER_REQUEST_ENDPOINTS, {
+          method: 'GET',
+          token: authToken,
+        });
+        const userConversations = mapConversationsFromRequests(data, user);
+        return userConversations.map(applySupportApproval);
+      }
+
+      const data = await apiRequestAny(CHAT_LIST_ENDPOINTS, {
         method: 'GET',
         token: authToken,
       });
+
+      const directConversations = mapConversationList(data, user);
+      if (directConversations.length) {
+        return directConversations.map(applySupportApproval);
+      }
 
       const rows = mapChatRows(data);
       return buildConversationsFromChats(rows, user);
@@ -766,9 +1128,32 @@ export const AuthProvider = ({ children }) => {
   const ensureSupportConversation = async ({ lawyerId = null } = {}) => {
     if (!user) throw new Error('Avval tizimga kiring');
     if (user.role === 'admin') throw new Error('Admin uchun bu amal kerak emas');
+    if (isIdentityBlocked(user)) {
+      throw new Error('Hisob bloklangan. Chat ochish mumkin emas.');
+    }
 
     if (USE_LOCAL_FALLBACK) {
       return ensureLocalConversation({ currentUser: user, lawyerId });
+    }
+
+    if (user.role === 'lawyer') {
+      const payload = await apiRequestAny(LAWYER_REQUEST_ENDPOINTS, {
+        method: 'GET',
+        token: authToken,
+      });
+      const conversations = mapConversationsFromRequests(payload, user);
+      const matched = conversations.find((item) => String(item?.id || '') === String(lawyerId || ''));
+      if (matched) return matched;
+      if (conversations.length) return conversations[0];
+    } else {
+      const payload = await apiRequestAny(USER_REQUEST_ENDPOINTS, {
+        method: 'GET',
+        token: authToken,
+      });
+      const conversations = mapConversationsFromRequests(payload, user);
+      const matched = conversations.find((item) => String(item?.lawyerId || '') === String(lawyerId || ''));
+      if (matched) return matched;
+      if (conversations.length) return conversations[0];
     }
 
     const currentIdentity = getCurrentIdentity(user);
@@ -795,7 +1180,35 @@ export const AuthProvider = ({ children }) => {
     if (!conversationId) return [];
 
     try {
-      const data = await apiRequest(CHAT_ENDPOINT, { method: 'GET', token: authToken });
+      if (user?.role === 'admin') {
+        const data = await apiRequestAny(ADMIN_CHAT_LIST_ENDPOINTS, {
+          method: 'GET',
+          token: authToken,
+        });
+        const all = mapMessagesFromChatPayload(data, conversationId);
+        const scoped = all.filter((msg) => String(msg.conversationId) === String(conversationId));
+        return scoped.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      }
+
+      if (user?.role === 'lawyer') {
+        const data = await apiRequestAny(LAWYER_CHAT_BY_REQUEST_ENDPOINTS(conversationId), {
+          method: 'GET',
+          token: authToken,
+        });
+        const directMessages = mapMessagesFromChatPayload(data, conversationId);
+        return directMessages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      }
+
+      const data = await apiRequestAny(buildChatByIdEndpoints(conversationId), {
+        method: 'GET',
+        token: authToken,
+      });
+
+      const directMessages = mapMessagesFromChatPayload(data, conversationId);
+      if (directMessages.length) {
+        return directMessages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      }
+
       const rows = mapChatRows(data);
       const filtered = rows
         .filter((row) => makeConversationId(row.sender, row.receiver) === String(conversationId))
@@ -806,14 +1219,22 @@ export const AuthProvider = ({ children }) => {
           id: row.id,
           conversationId,
           senderId: row.sender,
-          senderRole: row.sender === 'admin' ? 'admin' : 'user',
+          senderRole: row.sender === 'admin'
+            ? 'admin'
+            : (row.senderType || (String(row.sender || '').toLowerCase().includes('lawyer') ? 'lawyer' : 'user')),
+          senderType: row.sender === 'admin'
+            ? 'admin'
+            : (row.senderType || (String(row.sender || '').toLowerCase().includes('lawyer') ? 'lawyer' : 'user')),
           senderName: row.sender === 'admin' ? 'Platforma admini' : row.sender,
           text: row.message,
           createdAt: row.createdAt,
         })
       );
     } catch (err) {
-      if (!USE_LOCAL_FALLBACK) throw err;
+      if (!USE_LOCAL_FALLBACK) {
+        if (err?.status === 400 || err?.status === 404) return [];
+        throw err;
+      }
       const local = loadMessages()
         .map(normalizeMessage)
         .filter((m) => String(m.conversationId) === String(conversationId));
@@ -826,6 +1247,9 @@ export const AuthProvider = ({ children }) => {
     if (!user) throw new Error('Avval tizimga kiring');
     if (!conversationId) throw new Error('Suhbat tanlanmagan');
     if (!text?.trim()) throw new Error('Xabar bo‘sh bo‘lishi mumkin emas');
+    if (user.role !== 'admin' && isIdentityBlocked(user)) {
+      throw new Error('Hisob bloklangan. Xabar yuborish mumkin emas.');
+    }
 
     const trimmed = text.trim();
     const currentIdentity = getCurrentIdentity(user);
@@ -835,38 +1259,65 @@ export const AuthProvider = ({ children }) => {
       : null;
     const peer = normalizeParty(receiver || peerFromConversation || 'admin');
 
-    const payload = {
-      message: trimmed,
-      type: 'support',
-      receiver: peer === 'admin' ? null : peer,
-    };
-
     const approvalMap = normalizeApprovalMap(loadSupportApprovals());
     const approval = approvalMap[String(conversationId)];
     if (user.role !== 'admin' && approval && approval.approved === false) {
       throw new Error('Chat hali admin tomonidan tasdiqlanmagan');
     }
 
+    const numericChatId = Number(conversationId);
+    const isNumericChatId = Number.isFinite(numericChatId) && numericChatId > 0;
+    if (!isNumericChatId && !USE_LOCAL_FALLBACK) {
+      throw new Error('Backend chat ID topilmadi. Avval ariza/chat yaratilganini tekshiring.');
+    }
+    const resolvedChatId = isNumericChatId ? numericChatId : conversationId;
+
     try {
-      const data = await apiRequest(CHAT_ENDPOINT, {
+      const endpointPool = user.role === 'admin'
+        ? ADMIN_CHAT_SEND_ENDPOINTS
+        : user.role === 'lawyer'
+          ? LAWYER_CHAT_SEND_ENDPOINTS
+          : CHAT_SEND_ENDPOINTS;
+
+      const apiPayload = user.role === 'admin' || user.role === 'lawyer'
+        ? {
+            chat_id: resolvedChatId,
+            message: trimmed,
+          }
+        : {
+            chat_id: resolvedChatId,
+            message: trimmed,
+            type: 'support',
+            receiver: peer === 'admin' ? null : peer,
+            sender_type: user.role,
+          };
+
+      const data = await apiRequestAny(endpointPool, {
         method: 'POST',
         token: authToken,
-        body: payload,
+        body: apiPayload,
       });
       const chat = normalizeChatRow(data.chat || data.data || data);
-      const actualConversationId = makeConversationId(chat.sender, chat.receiver);
+      const canBuildFromPair = Boolean(chat.sender && chat.receiver) && !(chat.sender === 'admin' && chat.receiver === 'admin');
+      const actualConversationId = chat.chatId || (canBuildFromPair ? makeConversationId(chat.sender, chat.receiver) : conversationId);
 
       return normalizeMessage({
         id: chat.id,
         conversationId: actualConversationId || conversationId,
         senderId: chat.sender,
         senderRole: chat.sender === 'admin' ? 'admin' : user.role,
+        senderType: chat.sender === 'admin' ? 'admin' : user.role,
         senderName: chat.sender === 'admin' ? 'Platforma admini' : (user.name || user.email || chat.sender),
         text: chat.message || trimmed,
         createdAt: chat.createdAt,
       });
     } catch (err) {
-      if (!USE_LOCAL_FALLBACK) throw err;
+      if (!USE_LOCAL_FALLBACK) {
+        if (err?.status === 400 || err?.status === 404) {
+          throw new Error('Chat topilmadi. Avval ariza yaratilib chat ochilganini tekshiring.');
+        }
+        throw err;
+      }
       const conversations = loadConversations();
       const convIndex = conversations.findIndex((c) => String(c.id) === String(conversationId));
 
@@ -881,6 +1332,7 @@ export const AuthProvider = ({ children }) => {
         conversationId,
         senderId: user.id,
         senderRole: user.role,
+        senderType: user.role,
         senderName: user.name || user.email,
         text: text.trim(),
         createdAt: new Date().toISOString(),
@@ -988,6 +1440,55 @@ export const AuthProvider = ({ children }) => {
     return conversations[idx];
   };
 
+  const isUserBlocked = (identity = {}) => {
+    return isIdentityBlocked(identity);
+  };
+
+  const setUserBlocked = async (identity = {}, blocked = true) => {
+    if (!user || user.role !== 'admin') {
+      throw new Error('Faqat admin foydalanuvchini bloklay oladi');
+    }
+
+    const keys = buildIdentityKeys(identity);
+    if (!keys.length) {
+      throw new Error('Foydalanuvchi identifikatori topilmadi');
+    }
+
+    const map = readBlockedUsers();
+    const nextState = Boolean(blocked);
+    const actor = user?.email || 'admin';
+    const now = new Date().toISOString();
+
+    keys.forEach((key) => {
+      map[key] = {
+        blocked: nextState,
+        updatedAt: now,
+        updatedBy: actor,
+      };
+    });
+    writeBlockedUsers(map);
+
+    const localUsers = loadLocalUsers();
+    const updatedUsers = localUsers.map((row) => {
+      const match = buildIdentityKeys(row).some((key) => keys.includes(key));
+      if (!match) return row;
+      return {
+        ...row,
+        blocked: nextState,
+        blockedAt: now,
+        blockedBy: actor,
+      };
+    });
+    saveLocalUsers(updatedUsers);
+
+    return {
+      success: true,
+      blocked: nextState,
+      keys,
+      updatedAt: now,
+    };
+  };
+
   const isAuthenticated = Boolean(authToken && user);
   const isAdmin = user?.role === 'admin';
   const isLawyer = user?.role === 'lawyer';
@@ -1005,6 +1506,8 @@ export const AuthProvider = ({ children }) => {
     register,
     sendCode,
     verifyCode,
+    forgotPassword,
+    resetPassword,
     logout,
     setManualToken,
     createAdmin,
@@ -1016,6 +1519,8 @@ export const AuthProvider = ({ children }) => {
     sendSupportMessage,
     setSupportConversationApproval,
     setSupportConversationStatus,
+    isUserBlocked,
+    setUserBlocked,
     safeError,
   };
 

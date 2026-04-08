@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import SupportChat from '../components/chat/SupportChat';
+import '../styles/panels-minimal.css';
 
 const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
 const LAWYER_AVAILABILITY_KEY = 'legallink_lawyer_availability_v1';
@@ -382,7 +383,7 @@ export default function LawyerDashboard() {
   }
 
   return (
-    <div className="min-h-screen pt-28 pb-20 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+    <div className="lawyer-dashboard-shell lawyer-panel-minimal min-h-screen pt-28 pb-20 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
       <div className="section-wrap">
         <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6">
           <aside className="lg:sticky lg:top-28 self-start surface-card rounded-3xl p-4">
