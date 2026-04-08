@@ -212,7 +212,7 @@ const LAWYER_CHAT_BY_REQUEST_ENDPOINTS = (requestId) => [
 const LOGIN_ENDPOINTS = ['/user/auth/login', '/auth/login', '/login', '/users/login'];
 const SEND_CODE_ENDPOINTS = ['/user/auth/send-code', '/auth/send-code', '/send-code', '/users/send-code'];
 const VERIFY_CODE_ENDPOINTS = ['/user/auth/verify-code', '/auth/verify-code', '/verify-code', '/users/verify-code'];
-const REGISTER_ENDPOINTS = ['/user/auth/register', '/auth/register', '/users/register'];
+const REGISTER_ENDPOINTS = ['/user/auth/register'];
 const LOGOUT_ENDPOINTS = ['/user/auth/logout', '/auth/logout', '/logout'];
 const FORGOT_PASSWORD_ENDPOINTS = [
   '/user/forgot_password/forgot-password',
@@ -771,10 +771,21 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (email, password) => {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedPassword = String(password || '').trim();
+
+    // Current backend flow: send code first, then verify code.
+    try {
+      await sendCode(normalizedEmail, normalizedPassword);
+      return { requiresVerification: true };
+    } catch {
+      // Fallback to classic register endpoint flow below.
+    }
+
     try {
       const data = await apiRequestAny(REGISTER_ENDPOINTS, {
         method: 'POST',
-        body: { email, password },
+        body: { email: normalizedEmail, password: normalizedPassword },
       });
 
       const token = data.token || data.accessToken;
@@ -782,7 +793,7 @@ export const AuthProvider = ({ children }) => {
 
       if (token && userData) {
         saveVerifyAuthToken(data.tempToken);
-        const session = setSession(token, userData, password);
+        const session = setSession(token, userData, normalizedPassword);
         return { ...session, requiresVerification: false };
       }
 
@@ -795,8 +806,8 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Backend register javobi noto‘g‘ri formatda qaytdi');
       }
 
-      const local = localRegister(email, password);
-      const session = setSession(local.token, local.user, password);
+      const local = localRegister(normalizedEmail, normalizedPassword);
+      const session = setSession(local.token, local.user, normalizedPassword);
       return { ...session, requiresVerification: false, localOnly: true };
     } catch (err) {
       // Agar backend email+kod flow ishlatsa
@@ -804,7 +815,7 @@ export const AuthProvider = ({ children }) => {
 
       if (!USE_LOCAL_FALLBACK) {
         try {
-          await sendCode(email, password);
+          await sendCode(normalizedEmail, normalizedPassword);
           return { requiresVerification: true };
         } catch {
           throw err;
@@ -812,11 +823,11 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        await sendCode(email, password);
+        await sendCode(normalizedEmail, normalizedPassword);
         return { requiresVerification: true };
       } catch {
-        const local = localRegister(email, password);
-        const session = setSession(local.token, local.user, password);
+        const local = localRegister(normalizedEmail, normalizedPassword);
+        const session = setSession(local.token, local.user, normalizedPassword);
         return { ...session, requiresVerification: false, localOnly: true };
       }
     }
