@@ -38,7 +38,6 @@ import {
 
 const LOCAL_APPLICATIONS_KEY = 'legallink_user_applications_v1';
 const LOCAL_SUBSCRIPTIONS_KEY = 'legallink_user_subscriptions_v1';
-const USER_APPLICATION_LIST_ENDPOINTS = ['/user/ariza/my', '/applications', '/documents', '/requests', '/api/applications'];
 const USER_APPLICATION_CREATE_ENDPOINTS = ['/user/ariza', '/applications', '/requests', '/documents', '/api/applications'];
 
 const TAB_ITEMS = [
@@ -62,6 +61,21 @@ const readJSON = (key, fallback) => {
 
 const saveJSON = (key, value) => {
   localStorage.setItem(key, JSON.stringify(value));
+};
+
+const normalizeIdentity = (value) => String(value || '').trim().toLowerCase();
+const pickOwnedSubscriptions = (rows, user) => {
+  if (!Array.isArray(rows)) return [];
+  const userEmail = normalizeIdentity(user?.email);
+  const userId = String(user?.id || '').trim();
+
+  return rows.filter((row) => {
+    const rowEmail = normalizeIdentity(row?.userEmail || row?.email);
+    const rowId = String(row?.userId || row?.clientId || '').trim();
+    if (userEmail && rowEmail && userEmail === rowEmail) return true;
+    if (userId && rowId && userId === rowId) return true;
+    return false;
+  });
 };
 
 export default function Dashboard() {
@@ -149,49 +163,32 @@ export default function Dashboard() {
     setError('');
 
     try {
-      const [appsRes, subRes, chatsRes] = await Promise.allSettled([
-        apiRequest(USER_APPLICATION_LIST_ENDPOINTS, { method: 'GET' }),
-        apiRequest(['/subscriptions', '/users/subscriptions', '/billing/subscriptions', '/api/subscriptions'], { method: 'GET' }),
+      const localApps = readJSON(LOCAL_APPLICATIONS_KEY, []);
+      const localSubs = pickOwnedSubscriptions(readSubscriptions(), user);
+      setApplications(localApps);
+      setSubscriptions(localSubs);
+      saveJSON(LOCAL_APPLICATIONS_KEY, localApps);
+      saveJSON(LOCAL_SUBSCRIPTIONS_KEY, localSubs);
+
+      const [chatsRes] = await Promise.allSettled([
         listSupportConversations(),
       ]);
-
-      if (appsRes.status === 'fulfilled') {
-        const payload = appsRes.value;
-        const appList = toArray(payload).length
-          ? toArray(payload)
-          : (payload?.applications || payload?.requests || payload?.documents || payload?.items || payload?.data || []);
-        setApplications(appList);
-        saveJSON(LOCAL_APPLICATIONS_KEY, appList);
-      }
-
-      if (subRes.status === 'fulfilled') {
-        const payload = subRes.value;
-        const subList = toArray(payload).length
-          ? toArray(payload)
-          : (payload?.subscriptions || payload?.items || payload?.data || []);
-        setSubscriptions(subList);
-        saveJSON(LOCAL_SUBSCRIPTIONS_KEY, subList);
-      }
 
       if (chatsRes.status === 'fulfilled') {
         setConversations(Array.isArray(chatsRes.value) ? chatsRes.value : []);
       }
 
-      if (
-        appsRes.status === 'rejected' &&
-        subRes.status === 'rejected' &&
-        chatsRes.status === 'rejected'
-      ) {
+      if (chatsRes.status === 'rejected') {
         throw new Error("Ma'lumotlarni yuklab bo'lmadi");
       }
     } catch (err) {
       setError(safeError(err, "Kabinet ma'lumotlarini yuklashda xatolik"));
       setApplications(readJSON(LOCAL_APPLICATIONS_KEY, []));
-      setSubscriptions(readJSON(LOCAL_SUBSCRIPTIONS_KEY, []));
+      setSubscriptions(pickOwnedSubscriptions(readJSON(LOCAL_SUBSCRIPTIONS_KEY, []), user));
     } finally {
       setLoading(false);
     }
-  }, [apiRequest, listSupportConversations, safeError]);
+  }, [listSupportConversations, safeError, user]);
 
   useEffect(() => {
     if (user) {

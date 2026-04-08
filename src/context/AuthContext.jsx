@@ -106,6 +106,12 @@ const clearSession = () => {
 
 const safeError = (err, fallback) => err?.message || fallback;
 const USE_LOCAL_FALLBACK = ENABLE_LOCAL_FALLBACK;
+const canUseChatFallback = (err) => {
+  if (USE_LOCAL_FALLBACK) return true;
+  const status = Number(err?.status);
+  if (!Number.isFinite(status)) return true;
+  return status >= 500 || status === 404 || status === 405;
+};
 
 async function apiRequest(path, { method = 'GET', body, token, headers = {} } = {}) {
   const response = await fetch(buildApiUrl(path), {
@@ -201,7 +207,6 @@ const normalizeMessage = (msg = {}) => ({
 
 const CHAT_LIST_ENDPOINTS = ['/user/chats', '/chats'];
 const CHAT_SEND_ENDPOINTS = ['/user/chats/send', '/chats'];
-const USER_REQUEST_ENDPOINTS = ['/user/ariza/my', '/ariza/my', '/requests/my'];
 const ADMIN_CHAT_LIST_ENDPOINTS = ['/admin/chats/chats', '/admin/chats'];
 const ADMIN_CHAT_SEND_ENDPOINTS = ['/admin/chats/chats/send', '/admin/chats/send'];
 const LAWYER_CHAT_SEND_ENDPOINTS = ['/advokat/chats/chat/send'];
@@ -1124,12 +1129,17 @@ export const AuthProvider = ({ children }) => {
         const lawyerConversations = mapConversationsFromRequests(data, user);
         return lawyerConversations.map(applySupportApproval);
       } else {
-        const data = await apiRequestAny(USER_REQUEST_ENDPOINTS, {
+        const data = await apiRequestAny(CHAT_LIST_ENDPOINTS, {
           method: 'GET',
           token: authToken,
         });
-        const userConversations = mapConversationsFromRequests(data, user);
-        return userConversations.map(applySupportApproval);
+        const directConversations = mapConversationList(data, user);
+        if (directConversations.length) {
+          return directConversations.map(applySupportApproval);
+        }
+
+        const rows = mapChatRows(data);
+        return buildConversationsFromChats(rows, user).map(applySupportApproval);
       }
 
       const data = await apiRequestAny(CHAT_LIST_ENDPOINTS, {
@@ -1145,7 +1155,7 @@ export const AuthProvider = ({ children }) => {
       const rows = mapChatRows(data);
       return buildConversationsFromChats(rows, user);
     } catch (err) {
-      if (!USE_LOCAL_FALLBACK) throw err;
+      if (!canUseChatFallback(err)) throw err;
       const all = loadConversations().map(applySupportApproval);
       const filtered = user.role === 'admin'
         ? all
@@ -1168,24 +1178,29 @@ export const AuthProvider = ({ children }) => {
       return ensureLocalConversation({ currentUser: user, lawyerId });
     }
 
-    if (user.role === 'lawyer') {
-      const payload = await apiRequestAny(LAWYER_REQUEST_ENDPOINTS, {
-        method: 'GET',
-        token: authToken,
-      });
-      const conversations = mapConversationsFromRequests(payload, user);
-      const matched = conversations.find((item) => String(item?.id || '') === String(lawyerId || ''));
-      if (matched) return matched;
-      if (conversations.length) return conversations[0];
-    } else {
-      const payload = await apiRequestAny(USER_REQUEST_ENDPOINTS, {
-        method: 'GET',
-        token: authToken,
-      });
-      const conversations = mapConversationsFromRequests(payload, user);
-      const matched = conversations.find((item) => String(item?.lawyerId || '') === String(lawyerId || ''));
-      if (matched) return matched;
-      if (conversations.length) return conversations[0];
+    try {
+      if (user.role === 'lawyer') {
+        const payload = await apiRequestAny(LAWYER_REQUEST_ENDPOINTS, {
+          method: 'GET',
+          token: authToken,
+        });
+        const conversations = mapConversationsFromRequests(payload, user);
+        const matched = conversations.find((item) => String(item?.id || '') === String(lawyerId || ''));
+        if (matched) return matched;
+        if (conversations.length) return conversations[0];
+      } else {
+        const payload = await apiRequestAny(CHAT_LIST_ENDPOINTS, {
+          method: 'GET',
+          token: authToken,
+        });
+        const conversations = mapConversationList(payload, user);
+        const matched = conversations.find((item) => String(item?.lawyerId || '') === String(lawyerId || ''));
+        if (matched) return matched;
+        if (conversations.length) return conversations[0];
+      }
+    } catch (err) {
+      if (!canUseChatFallback(err)) throw err;
+      return ensureLocalConversation({ currentUser: user, lawyerId });
     }
 
     const currentIdentity = getCurrentIdentity(user);
@@ -1263,7 +1278,7 @@ export const AuthProvider = ({ children }) => {
         })
       );
     } catch (err) {
-      if (!USE_LOCAL_FALLBACK) {
+      if (!canUseChatFallback(err)) {
         if (err?.status === 400 || err?.status === 404) return [];
         throw err;
       }
@@ -1299,9 +1314,6 @@ export const AuthProvider = ({ children }) => {
 
     const numericChatId = Number(conversationId);
     const isNumericChatId = Number.isFinite(numericChatId) && numericChatId > 0;
-    if (!isNumericChatId && !USE_LOCAL_FALLBACK) {
-      throw new Error('Backend chat ID topilmadi. Avval ariza/chat yaratilganini tekshiring.');
-    }
     const resolvedChatId = isNumericChatId ? numericChatId : conversationId;
 
     try {
@@ -1344,7 +1356,7 @@ export const AuthProvider = ({ children }) => {
         createdAt: chat.createdAt,
       });
     } catch (err) {
-      if (!USE_LOCAL_FALLBACK) {
+      if (!canUseChatFallback(err)) {
         if (err?.status === 400 || err?.status === 404) {
           throw new Error('Chat topilmadi. Avval ariza yaratilib chat ochilganini tekshiring.');
         }

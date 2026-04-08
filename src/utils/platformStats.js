@@ -121,7 +121,7 @@ export const loadPlatformStats = async () => {
     const [usersPayload, lawyersPayload, applicationsPayload, usersStatsPayload, resolvedStatsPayload] = await Promise.all([
       fetchAny(['/admin/user/users/count', '/user/list', '/user/users', '/users', '/users/', '/auth/users']),
       fetchAny(['/admin/user/lawyers/count', '/advokat/lawyers', '/advokat/list', '/advokat', '/lawyers', '/api/lawyers']),
-      fetchAny(['/admin/ariza/requests', '/user/ariza/my', '/xissobot/stats', '/xissobot%20/stats', '/applications', '/api/applications', '/documents', '/api/documents']),
+      fetchAny(['/admin/ariza/requests', '/xissobot/stats', '/xissobot%20/stats', '/applications', '/api/applications', '/documents', '/api/documents']),
       fetchAny(['/list/stats', '/list%20/stats']),
       fetchAny(['/xissobot/stats', '/xissobot%20/stats']),
     ]);
