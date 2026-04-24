@@ -64,7 +64,8 @@ export default function Auth() {
   }, []);
 
   const handleGoogleLogin = () => {
-    const googleUrl = `${API_BASE_URL}/user/auth/google`;
+    const callbackUrl = `${window.location.origin}/auth/callback`;
+    const googleUrl = `${API_BASE_URL}/user/auth/google?redirect_uri=${encodeURIComponent(callbackUrl)}&frontend_redirect=${encodeURIComponent(callbackUrl)}`;
     window.location.href = googleUrl;
   };
 

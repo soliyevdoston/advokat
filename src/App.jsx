@@ -14,6 +14,7 @@ import About from './pages/About';
 import ChatPage from './pages/Chat';
 import CaseNavigatorPage from './pages/CaseNavigator';
 import Auth from './pages/Auth';
+import GoogleCallback from './pages/GoogleCallback';
 import Dashboard from './pages/Dashboard';
 import LawyerDashboard from './pages/LawyerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
@@ -65,6 +66,7 @@ function AppContent() {
 
           {/* Auth */}
           <Route path="/auth" element={<Auth />} />
+          <Route path="/auth/callback" element={<GoogleCallback />} />
 
           {/* User dashboard */}
           <Route
