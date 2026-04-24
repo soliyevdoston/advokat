@@ -1,41 +1,28 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
-import { Scale, Mail, Lock, Chrome } from 'lucide-react';
+import { Scale, Mail, Lock } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Logo from '../components/ui/Logo';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { submitLawyerApplication } from '../utils/lawyerApplications';
-import { buildApiUrl } from '../config/appConfig';
+import { API_BASE_URL } from '../config/appConfig';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
-const GOOGLE_AUTH_ENDPOINTS = [
-  '/auth/google',
-  '/auth/google-login',
-  '/auth/oauth/google',
-  '/google-auth',
-];
 const DEMO_ADMIN_EMAIL = 'admin@legallink.uz';
 const DEMO_ADMIN_PASSWORD = 'admin12345';
 const DEMO_LAWYER_EMAIL = 'lawyer@legallink.uz';
 const DEMO_LAWYER_PASSWORD = 'lawyer12345';
 
-const decodeJwtPayload = (token) => {
-  const raw = String(token || '').trim();
-  const parts = raw.split('.');
-  if (parts.length < 2) return {};
-
-  const base64Url = parts[1];
-  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64 + '='.repeat((4 - (base64.length % 4 || 4)) % 4);
-
-  try {
-    return JSON.parse(atob(padded));
-  } catch {
-    return {};
-  }
-};
+function GoogleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M47.532 24.552c0-1.636-.146-3.2-.418-4.692H24.48v9.01h12.958c-.572 2.99-2.254 5.52-4.792 7.218v5.996h7.758c4.54-4.18 7.128-10.338 7.128-17.532z" fill="#4285F4"/>
+      <path d="M24.48 48c6.494 0 11.942-2.154 15.922-5.836l-7.758-5.996c-2.154 1.444-4.912 2.294-8.164 2.294-6.278 0-11.59-4.238-13.488-9.932H2.954v6.192C6.914 42.892 15.104 48 24.48 48z" fill="#34A853"/>
+      <path d="M10.992 28.53A14.52 14.52 0 0 1 10.24 24c0-1.574.274-3.104.752-4.53v-6.192H2.954A23.94 23.94 0 0 0 .48 24c0 3.874.928 7.542 2.474 10.722l8.038-6.192z" fill="#FBBC05"/>
+      <path d="M24.48 9.538c3.538 0 6.712 1.216 9.208 3.608l6.9-6.9C36.414 2.392 30.974 0 24.48 0 15.104 0 6.914 5.108 2.954 13.278l8.038 6.192c1.898-5.694 7.21-9.932 13.488-9.932z" fill="#EA4335"/>
+    </svg>
+  );
+}
 
 export default function Auth() {
   const location = useLocation();
@@ -53,9 +40,6 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
-  const [googleReady, setGoogleReady] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const googleMountedRef = useRef(false);
 
   const resolveRedirect = (role) => {
     const from = location.state?.from?.pathname;
@@ -63,132 +47,26 @@ export default function Auth() {
     return role === 'admin' ? '/admin' : role === 'lawyer' ? '/lawyer' : '/dashboard';
   };
 
-  const requestGoogleBackendAuth = async (credential, profile) => {
-    for (const endpoint of GOOGLE_AUTH_ENDPOINTS) {
-      try {
-        const response = await fetch(buildApiUrl(endpoint), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            credential,
-            token: credential,
-            profile,
-          }),
-        });
-
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          if ([404, 405].includes(response.status)) continue;
-          const err = new Error(data?.message || data?.error || `Google auth xatosi: ${response.status}`);
-          err.status = response.status;
-          throw err;
-        }
-
-        const token = data.token || data.accessToken || data.data?.token || data.data?.accessToken || '';
-        const userData = data.user || data.data?.user || data.data || profile;
-        if (!token) continue;
-
-        return { token, user: userData };
-      } catch (err) {
-        if (err?.status === 404 || err?.status === 405) continue;
-      }
-    }
-
-    return null;
-  };
-
-  const finishGoogleLogin = async (credentialResponse) => {
-    const credential = String(credentialResponse?.credential || '').trim();
-    if (!credential) {
-      setError("Google credential olinmadi. Qayta urinib ko'ring.");
-      return;
-    }
-
-    setGoogleLoading(true);
-    setError(null);
-
-    try {
-      const profile = decodeJwtPayload(credential);
-      const fallbackUser = {
-        email: profile?.email || '',
-        name: profile?.name || profile?.given_name || 'Foydalanuvchi',
-        avatar: profile?.picture || '',
-        role: 'user',
-        googleSub: profile?.sub || '',
-      };
-
-      const backendSession = await requestGoogleBackendAuth(credential, fallbackUser);
-
-      if (backendSession?.token) {
-        setManualToken(backendSession.token, backendSession.user || fallbackUser);
-        navigate(resolveRedirect(backendSession?.user?.role || fallbackUser.role), { replace: true });
-        return;
-      }
-
-      const localToken = `google_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
-      setManualToken(localToken, fallbackUser);
-      navigate(resolveRedirect(fallbackUser.role), { replace: true });
-    } catch (err) {
-      setError(err?.message || 'Google orqali kirishda xatolik yuz berdi');
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  const triggerGooglePrompt = () => {
-    if (!window.google?.accounts?.id) {
-      setError("Google kirish servisi hali yuklanmadi.");
-      return;
-    }
-
-    setError(null);
-    window.google.accounts.id.prompt();
-  };
-
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) return undefined;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (!token) return;
 
-    const initGoogle = () => {
-      if (googleMountedRef.current) return;
-      if (!window.google?.accounts?.id) return;
-
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: (response) => {
-          void finishGoogleLogin(response);
-        },
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
-
-      googleMountedRef.current = true;
-      setGoogleReady(true);
-    };
-
-    if (window.google?.accounts?.id) {
-      initGoogle();
-      return undefined;
+    const userParam = params.get('user');
+    let userData = null;
+    if (userParam) {
+      try { userData = JSON.parse(decodeURIComponent(userParam)); } catch { /* ignore */ }
     }
 
-    const existing = document.querySelector(`script[src="${GOOGLE_SCRIPT_SRC}"]`);
-    const script = existing || document.createElement('script');
-    script.src = GOOGLE_SCRIPT_SRC;
-    script.async = true;
-    script.defer = true;
-
-    const onLoad = () => initGoogle();
-    script.addEventListener('load', onLoad);
-
-    if (!existing) {
-      document.head.appendChild(script);
-    }
-
-    return () => {
-      script.removeEventListener('load', onLoad);
-    };
+    window.history.replaceState({}, '', window.location.pathname);
+    setManualToken(token, userData);
+    navigate(resolveRedirect(userData?.role || 'user'), { replace: true });
   }, []);
+
+  const handleGoogleLogin = () => {
+    const googleUrl = `${API_BASE_URL}/user/auth/google`;
+    window.location.href = googleUrl;
+  };
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -601,31 +479,15 @@ export default function Auth() {
             </div>
           </div>
 
-          {GOOGLE_CLIENT_ID ? (
-            <button
-              type="button"
-              onClick={triggerGooglePrompt}
-              disabled={!googleReady || googleLoading}
-              className={`flex items-center justify-center gap-3 px-4 py-3.5 border-2 rounded-2xl w-full font-bold transition-colors ${
-                !googleReady || googleLoading
-                  ? 'border-slate-100 dark:border-slate-700 text-slate-400 dark:text-slate-500 bg-transparent cursor-not-allowed opacity-70'
-                  : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/40'
-              }`}
-            >
-              <Chrome size={22} />
-              {googleLoading ? 'Google hisob tekshirilmoqda...' : t('auth.google')}
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled
-              title="Google login yoqilmagan"
-              className="flex items-center justify-center gap-3 px-4 py-3.5 border-2 border-slate-100 dark:border-slate-700 rounded-2xl w-full font-bold text-slate-400 dark:text-slate-500 bg-transparent cursor-not-allowed opacity-60"
-            >
-              <Chrome size={22} />
-              Google login sozlanmagan
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="flex items-center justify-center gap-3 px-4 py-3.5 border-2 border-slate-200 dark:border-slate-600 rounded-2xl w-full font-bold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <GoogleIcon />
+            {t('auth.google')}
+          </button>
 
           {localFallbackEnabled && (
             <div className="mt-6 p-4 rounded-2xl border border-amber-100 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300">

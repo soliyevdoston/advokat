@@ -208,11 +208,11 @@ const normalizeMessage = (msg = {}) => ({
 const CHAT_LIST_ENDPOINTS = ['/user/chats', '/chats'];
 const CHAT_SEND_ENDPOINTS = ['/user/chats/send', '/chats'];
 const ADMIN_CHAT_LIST_ENDPOINTS = ['/admin/chats/chats', '/admin/chats'];
-const ADMIN_CHAT_SEND_ENDPOINTS = ['/admin/chats/chats/send', '/admin/chats/send'];
-const LAWYER_CHAT_SEND_ENDPOINTS = ['/advokat/chats/chat/send'];
+const ADMIN_CHAT_SEND_ENDPOINTS = ['/admin/chats/send', '/admin/chats/chats/send'];
+const LAWYER_CHAT_SEND_ENDPOINTS = ['/advokat/chats/send'];
 const LAWYER_REQUEST_ENDPOINTS = ['/advokat/chats/my-requests', '/advokat/ariza/my-requests'];
 const LAWYER_CHAT_BY_REQUEST_ENDPOINTS = (requestId) => [
-  `/advokat/chats/chat/${encodeURIComponent(String(requestId || '').trim())}`,
+  `/advokat/chats/${encodeURIComponent(String(requestId || '').trim())}`,
 ];
 const LOGIN_ENDPOINTS = ['/user/auth/login', '/auth/login', '/login', '/users/login'];
 const SEND_CODE_ENDPOINTS = ['/user/auth/send-code', '/auth/send-code', '/send-code', '/users/send-code'];
@@ -230,8 +230,23 @@ const RESET_PASSWORD_ENDPOINTS = [
   '/auth/reset-password',
 ];
 const CREATE_ADMIN_ENDPOINTS = ['/admin/auth/make', '/users/create_admin', '/users/create-admin', '/create_admin'];
-const CREATE_LAWYER_ENDPOINTS = ['/users/create_lawyer', '/users/create-lawyer', '/create_lawyer'];
+const CREATE_LAWYER_ENDPOINTS = ['/advokat/auth/register', '/users/create_lawyer', '/users/create-lawyer'];
 const USERS_ENDPOINTS = ['/admin/user/users/search?q=@', '/users/', '/users', '/auth/users'];
+
+const ARIZA_ENDPOINTS = ['/user/ariza/'];
+const MY_ARIZA_ENDPOINTS = ['/user/ariza/my'];
+const CONSTITUTION_ENDPOINTS = ['/user/constitutsiya/'];
+const CONSTITUTION_SEARCH_ENDPOINTS = ['/user/constitutsiya/search'];
+const ADMIN_ARIZA_ENDPOINTS = ['/admin/ariza/requests'];
+const ADVOKAT_ARIZA_ENDPOINTS = ['/advokat/ariza/my-requests'];
+const ADMIN_USER_COUNT_ENDPOINTS = {
+  users: '/admin/user/users/count',
+  admins: '/admin/user/admins/count',
+  clients: '/admin/user/clients/count',
+  lawyers: '/admin/user/lawyers/count',
+  chats: '/admin/user/chats/count',
+};
+const ADMIN_USER_PENDING_ENDPOINT = '/admin/user/pending';
 const DEFAULT_ADMIN_CREDENTIALS = {
   email: 'admin@legallink.uz',
   password: 'admin12345',
@@ -1533,6 +1548,131 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
+  const submitAriza = async (data) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequestAny(ARIZA_ENDPOINTS, { method: 'POST', token: authToken, body: data });
+  };
+
+  const getMyAriza = async () => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequestAny(MY_ARIZA_ENDPOINTS, { method: 'GET', token: authToken });
+  };
+
+  const getAllAriza = async () => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequestAny(ARIZA_ENDPOINTS, { method: 'GET', token: authToken });
+  };
+
+  const getConstitution = async () => {
+    return apiRequestAny(CONSTITUTION_ENDPOINTS, { method: 'GET' });
+  };
+
+  const searchConstitution = async (query) => {
+    const q = encodeURIComponent(String(query || '').trim());
+    return apiRequestAny(
+      CONSTITUTION_SEARCH_ENDPOINTS.map((ep) => `${ep}?q=${q}`),
+      { method: 'GET', token: authToken }
+    );
+  };
+
+  const getAdminAriza = async () => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequestAny(ADMIN_ARIZA_ENDPOINTS, { method: 'GET', token: authToken });
+  };
+
+  const assignAriza = async (arizaId, lawyerId) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest('/admin/ariza/requests/assign', {
+      method: 'POST', token: authToken, body: { request_id: arizaId, lawyer_id: lawyerId },
+    });
+  };
+
+  const getAdvokatAriza = async () => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequestAny(ADVOKAT_ARIZA_ENDPOINTS, { method: 'GET', token: authToken });
+  };
+
+  const acceptAriza = async (arizaId) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest('/advokat/ariza/accept', {
+      method: 'POST', token: authToken, body: { request_id: arizaId },
+    });
+  };
+
+  const declineAriza = async (arizaId) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest('/advokat/ariza/decline', {
+      method: 'POST', token: authToken, body: { request_id: arizaId },
+    });
+  };
+
+  const updateChatRequestStatus = async (requestId, status) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest('/advokat/chats/request/status', {
+      method: 'POST', token: authToken, body: { request_id: requestId, status },
+    });
+  };
+
+  const blockChatUser = async (chatId) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest('/admin/chats/block', {
+      method: 'POST', token: authToken, body: { chat_id: chatId },
+    });
+  };
+
+  const unblockChatUser = async (chatId) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest('/admin/chats/unblock', {
+      method: 'POST', token: authToken, body: { chat_id: chatId },
+    });
+  };
+
+  const sendAdminAiMessage = async ({ chatId, message }) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest('/admin/chats/ai', {
+      method: 'POST', token: authToken, body: { chat_id: chatId, message },
+    });
+  };
+
+  const filterChats = async (params = {}) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    const qs = new URLSearchParams(params).toString();
+    return apiRequest(`/admin/chats/filter${qs ? `?${qs}` : ''}`, {
+      method: 'GET', token: authToken,
+    });
+  };
+
+  const getAdminUserCounts = async () => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    const entries = await Promise.allSettled(
+      Object.entries(ADMIN_USER_COUNT_ENDPOINTS).map(([key, path]) =>
+        apiRequest(path, { method: 'GET', token: authToken })
+          .then((data) => [key, data?.count ?? data?.total ?? data?.data?.count ?? 0])
+          .catch(() => [key, 0])
+      )
+    );
+    return Object.fromEntries(entries.map((r) => r.value));
+  };
+
+  const getPendingUsers = async () => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest(ADMIN_USER_PENDING_ENDPOINT, { method: 'GET', token: authToken });
+  };
+
+  const approveUser = async (id) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest(`/admin/user/approve/${encodeURIComponent(id)}`, {
+      method: 'POST', token: authToken,
+    });
+  };
+
+  const rejectUser = async (id) => {
+    if (!authToken) throw new Error('Avval tizimga kiring');
+    return apiRequest(`/admin/user/reject/${encodeURIComponent(id)}`, {
+      method: 'POST', token: authToken,
+    });
+  };
+
   const isAuthenticated = Boolean(authToken && user);
   const isAdmin = user?.role === 'admin';
   const isLawyer = user?.role === 'lawyer';
@@ -1565,6 +1705,25 @@ export const AuthProvider = ({ children }) => {
     setSupportConversationStatus,
     isUserBlocked,
     setUserBlocked,
+    submitAriza,
+    getMyAriza,
+    getAllAriza,
+    getConstitution,
+    searchConstitution,
+    getAdminAriza,
+    assignAriza,
+    getAdvokatAriza,
+    acceptAriza,
+    declineAriza,
+    updateChatRequestStatus,
+    blockChatUser,
+    unblockChatUser,
+    sendAdminAiMessage,
+    filterChats,
+    getAdminUserCounts,
+    getPendingUsers,
+    approveUser,
+    rejectUser,
     safeError,
   };
 
