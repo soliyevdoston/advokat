@@ -67,6 +67,7 @@ function AppContent() {
           {/* Auth */}
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth/callback" element={<GoogleCallback />} />
+          <Route path="/user/auth/login-gugl" element={<GoogleCallback />} />
 
           {/* User dashboard */}
           <Route

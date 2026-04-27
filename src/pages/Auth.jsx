@@ -6,7 +6,6 @@ import Logo from '../components/ui/Logo';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { submitLawyerApplication } from '../utils/lawyerApplications';
-import { API_BASE_URL } from '../config/appConfig';
 
 const DEMO_ADMIN_EMAIL = 'admin@legallink.uz';
 const DEMO_ADMIN_PASSWORD = 'admin12345';
@@ -64,8 +63,9 @@ export default function Auth() {
   }, []);
 
   const handleGoogleLogin = () => {
-    const callbackUrl = `${window.location.origin}/auth/callback`;
-    const googleUrl = `${API_BASE_URL}/user/auth/google?redirect_uri=${encodeURIComponent(callbackUrl)}&frontend_redirect=${encodeURIComponent(callbackUrl)}`;
+    const callbackUrl = `${window.location.origin}/user/auth/login-gugl`;
+    const backendBase = import.meta.env.VITE_API_BASE_URL || '';
+    const googleUrl = `${backendBase}/user/auth/google?redirect_uri=${encodeURIComponent(callbackUrl)}&frontend_redirect=${encodeURIComponent(callbackUrl)}`;
     window.location.href = googleUrl;
   };
 

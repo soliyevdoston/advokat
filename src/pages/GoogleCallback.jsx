@@ -51,7 +51,7 @@ export default function GoogleCallback() {
     // Holat 3: Google code bilan qaytdi — backendga yuboramiz
     const code = params.get('code');
     if (code) {
-      const currentRedirectUri = `${window.location.origin}/auth/callback`;
+      const currentRedirectUri = `${window.location.origin}/user/auth/login-gugl`;
       let lastErr = null;
 
       for (const endpoint of GOOGLE_TOKEN_ENDPOINTS) {
