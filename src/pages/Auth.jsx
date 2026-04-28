@@ -6,6 +6,7 @@ import Logo from '../components/ui/Logo';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { submitLawyerApplication } from '../utils/lawyerApplications';
+import { buildApiUrl } from '../config/appConfig';
 
 const DEMO_ADMIN_EMAIL = 'admin@legallink.uz';
 const DEMO_ADMIN_PASSWORD = 'admin12345';
@@ -47,19 +48,61 @@ export default function Auth() {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    if (!token) return;
+    const handleTokenFromUrl = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      if (!token) return;
 
-    const userParam = params.get('user');
-    let userData = null;
-    if (userParam) {
-      try { userData = JSON.parse(decodeURIComponent(userParam)); } catch { /* ignore */ }
-    }
+      const userParam = params.get('user');
+      let userData = null;
+      if (userParam) {
+        try { userData = JSON.parse(decodeURIComponent(userParam)); } catch { /* ignore */ }
+      }
 
-    window.history.replaceState({}, '', window.location.pathname);
-    setManualToken(token, userData);
-    navigate(resolveRedirect(userData?.role || 'user'), { replace: true });
+      // Agar user ma'lumoti URL da bo'lmasa — API dan olamiz
+      if (!userData) {
+        const meEndpoints = ['/user/auth/me', '/auth/me', '/user/me', '/me'];
+        for (const ep of meEndpoints) {
+          try {
+            const res = await fetch(buildApiUrl(ep), {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) continue;
+            const data = await res.json();
+            userData = data.user || data.data?.user || data.data || data;
+            if (userData && (userData.email || userData.id || userData._id)) break;
+            userData = null;
+          } catch { continue; }
+        }
+      }
+
+      // JWT dan fallback
+      if (!userData) {
+        try {
+          const base64 = token.split('.')[1];
+          if (base64) {
+            const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+            const payload = JSON.parse(json);
+            userData = {
+              id: payload.id || payload.userId || payload.sub,
+              email: payload.email,
+              name: payload.name || payload.fullName,
+              role: payload.role || 'user',
+            };
+          }
+        } catch { /* ignore */ }
+      }
+
+      if (!userData) {
+        userData = { role: 'user' };
+      }
+
+      window.history.replaceState({}, '', window.location.pathname);
+      setManualToken(token, userData);
+      navigate(resolveRedirect(userData?.role || 'user'), { replace: true });
+    };
+
+    handleTokenFromUrl();
   }, []);
 
   const handleGoogleLogin = () => {

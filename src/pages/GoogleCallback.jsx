@@ -1,13 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { API_BASE_URL } from '../config/appConfig';
+import { API_BASE_URL, buildApiUrl } from '../config/appConfig';
 
 const GOOGLE_TOKEN_ENDPOINTS = [
   '/user/auth/google/callback',
   '/user/auth/google',
   '/auth/google/callback',
 ];
+
+const ME_ENDPOINTS = [
+  '/user/auth/me',
+  '/auth/me',
+  '/user/me',
+  '/me',
+];
+
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1];
+    if (!base64) return null;
+    const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchUserFromToken(token) {
+  for (const endpoint of ME_ENDPOINTS) {
+    try {
+      const res = await fetch(buildApiUrl(endpoint), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const user = data.user || data.data?.user || data.data || data;
+      if (user && (user.email || user.id || user._id)) return user;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
 
 export default function GoogleCallback() {
   const navigate = useNavigate();
@@ -34,6 +69,27 @@ export default function GoogleCallback() {
       if (userParam) {
         try { userData = JSON.parse(decodeURIComponent(userParam)); } catch { /* ignore */ }
       }
+
+      // Agar user ma'lumoti URL da bo'lmasa — API yoki JWT dan olamiz
+      if (!userData) {
+        userData = await fetchUserFromToken(token);
+      }
+      if (!userData) {
+        const jwtPayload = decodeJwtPayload(token);
+        if (jwtPayload) {
+          userData = {
+            id: jwtPayload.id || jwtPayload.userId || jwtPayload.sub,
+            email: jwtPayload.email,
+            name: jwtPayload.name || jwtPayload.fullName,
+            role: jwtPayload.role || 'user',
+          };
+        }
+      }
+      // Oxirgi fallback — minimal user object
+      if (!userData) {
+        userData = { role: 'user' };
+      }
+
       window.history.replaceState({}, '', window.location.pathname);
       setManualToken(token, userData);
       navigate(resolveRedirect(userData?.role || 'user'), { replace: true });
